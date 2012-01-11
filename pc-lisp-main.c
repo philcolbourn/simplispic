@@ -1,83 +1,99 @@
 
-#include "pc-lisp.h"
-
-ATOM   kw_quote, kw_lambda, kw_closure, kw_let, kw_let_star, kw_letrec;
-ATOM   kw_primitive, kw_exit;
-ATOM   kw_define, kw_set;
-ATOM   kw_read, kw_load, kw_eval, kw_eval1, kw_apply, kw_if, kw_cond;
-ATOM   kw_progn, kw_begin, kw_delay ,kw_force;
-ATOM   kw_display, kw_print;
-ATOM   kw_cons, kw_list, kw_cons_stream;
-
-ATOM   tag_env;
-
-
-//#include "pc-lisp-print.c"
-
-//#define SYM_DEBUG
-
-#ifdef SYM_DEBUG                                         
-
-  #define SYM_DEBUG_LINE( m ) \
-    fprintf( stderr,m " %s  %d  ",__FILE__,__LINE__ );
-
-  #define SYM_PEEK( m,a ) PEEK( m,a )
-
-#else
-
-  #define SYM_DEBUG_LINE( m )
-  #define SYM_PEEK( m,a )
-
+#ifndef __header
+  #define _pc_lisp_main_c
 #endif
 
+#ifndef _pc_lisp_main_h
+  #define _pc_lisp_main_h
+  #define __header
 
-// pair storage
-PAIR   pairs[SIZE];
-FLAGS  sar[SIZE];         // string garbage markage
-ATOM   freePairs;
-ATOM   usedPairs;
+#ifdef __header
 
-// type storage
-SYMBOL symbols[SYM_SIZE];
-char  *strings[SIZE];
+// HEADER
+
+//#include "pc-lisp.h"
+#include "pc-lisp-mem.c"
+#include "pc-lisp-test.c"
+#include "pc-lisp-read2.c"
+#include "pc-lisp-print.c"
+#include "pc-lisp-primitives.c"
+#include "pc-lisp-adt.c"
+#include "pc-lisp-eval-adt.c"
+
+#define BOOL( pred ) ( (pred) ? (TRU) : (NIL) )
+#define RET_BOOL( pred ) return BOOL( pred )
+#define EQ_TAG(a,b)  ( get_tag(a)==get_tag(b) )
+#define NE_TAG(a,b)  ( ! EQ_TAG(a,b) )
+
+
+//typedef unsigned char CHAR;
+
+// Primitive procedures
+extern ATOM (*primFns[SIZE])();
+extern int    freeFun;
+
+
+//#define MAKE_ATOM(tag,val) (ATOM){.val=(val), .tag=(tag)}
+//#define MAKE_PRIM(cfn)  (ATOM){.pfnval=(cfn), .pfntag=PFN}
+
+
+
+#define FALSEIF( pred )  if ( pred ) return FALSE;
+#define TRUEIF( pred )   if ( pred ) return TRUE;
+extern ATOM    gEnv;             // global environment
+
+
+
+void    boot();            // warm-boot interpreter
+// predicates
+
+int     equal    ( ATOM a,ATOM b );
+int     not      ( int a );
+
+//int     isNIL( ATOM a );
+
+ATOM    pair ( ATOM key,ATOM val );
+ATOM    assoc( ATOM sym,ATOM env );
+ATOM    eval ( ATOM exp,ATOM env );
+ATOM    apply( ATOM proc,ATOM args );
+ATOM    exita( ATOM val );
+
+//ATOM    readLoop();
+ATOM    repl();
+ATOM    readString( char *s );
+void    _strcpy( char *d,char *s,int n );
+
+ATOM assoc2( ATOM sym,ATOM env );
+ATOM assoc_kvp( ATOM sym,ATOM env );
+ATOM make_env();
+ATOM extend_env( ATOM env );
+ATOM env_find_kvp( ATOM env );
+ATOM evallst( ATOM lst,ATOM env );
+ATOM evalseq( ATOM seq,ATOM env );
+ATOM make_frame( ATOM alst,ATOM env );
+ATOM addKVPair3( ATOM kvp,ATOM env );
+int loop;
+ATOM _global_save;
+
+ATOM repl();
+int main();
+
+// END HEADER
+#endif
+
+#if defined(_pc_lisp_main_c)
+
+// CODE
+
 ATOM (*primFns[SIZE])();
 
-// free storage indexes - by convention reserve [0]
-int    freeSym = 1;
-int    freeStr = 1;
-int    freeFun = 1;
-
-ATOM   gEnv=NIL;     // global environment
-
-
-int get_tag(ATOM a){
-  if ( is_num(a) ) return NUM;
-  if ( is_par(a) ) return PAR;
-  if ( is_sym(a) ) return SYM;
-  if ( is_str(a) ) return STR;
-  if ( is_chr(a) ) return CHR;
-  if ( is_con(a) ) return CON;
-  if ( is_pfn(a) ) return PFN;
-  return -1;
-}
-int get_val(ATOM a){
-  if ( is_num(a) ) return a.numval;
-  if ( is_par(a) ) return a.parval;
-  if ( is_sym(a) ) return a.symval;
-  if ( is_str(a) ) return a.strval;
-  if ( is_chr(a) ) return a.chrval;
-  if ( is_con(a) ) return a.conval;
-  if ( is_pfn(a) ) return a.pfnval;
-  return 0;
-}
 
 ATOM _bad_primative_fn(){
   fprintf( stderr, "ERROR: Undefined primitive function.\n" );
   exit(1);
 }
 
-//#include "pc-lisp-mem.c"
-#include "pc-lisp-primitives.c"
+
 
 #define REGISTER_PRIMITIVES_0(i,n)                               \
 {                                                                \
@@ -86,7 +102,7 @@ ATOM _bad_primative_fn(){
   ATOM prim = eval(                                              \
     readString("(define " #n " (primitive () " #i "))"),         \
     gEnv );                                                      \
-  /**/SYM_PEEK( "",prim );/**/                                   \
+  /**/PEEK( "",prim );/**/                                   \
   /*KEEP3( cdr( prim ) );/**/   /* correct off all are defines*/ \
   /**/KEEP3( NIL );/**/         /* correct iff all are defines*/ \
 }
@@ -98,7 +114,7 @@ ATOM _bad_primative_fn(){
   ATOM prim = eval(                                              \
     readString("(define " #n " (primitive (a) " #i "))"),        \
     gEnv );                                                      \
-  /**/SYM_PEEK( "",prim );/**/                                   \
+  /**/PEEK( "",prim );/**/                                   \
   /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/  \
   /**/KEEP3( NIL );/**/        /* correct iff all are defines*/  \
 }
@@ -110,7 +126,7 @@ ATOM _bad_primative_fn(){
   ATOM prim = eval(                                              \
     readString( "(define " #n " (primitive (a b) " #i "))"),     \
     gEnv );                                                      \
-  /**/SYM_PEEK( "",prim );/**/                                   \
+  /**/PEEK( "",prim );/**/                                   \
   /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/  \
   /**/KEEP3( NIL );/**/        /* correct iff all are defines*/  \
 }
@@ -236,30 +252,14 @@ void boot(){
   fputs( "Booted and memory checked.\n",stderr );
 }
 
-//{dump,print,display}
-STRING printFormat[][3]={ 
-  [PAR] = { "%d@  "   , "%d@"   , "%d@" },
-  [NUM] = { "%d  "    , "%d"    , "%d"  },
-  [RE3] = { "%d  "    , "%d"    , "%d"  },
-  [RE5] = { "%d  "    , "%d"    , "%d"  },
-  [RE7] = { "%d  "    , "%d"    , "%d"  },
-  [SYM] = { "%s$  "   , "%s"    , "%s"  },
-  [CHR] = { "%c  "    , "%c"    , "%c"  },
-  [CON] = { "%d  "    , "%d"    , "%d"  },
-  [STR] = { "\"%s\"  ", "\"%s\"", "%s"  },
-  [PFN] = { "%x  "    , "%x"    , "%x"  }    // FIXME: remove?
-};
 
 ATOM exita( ATOM val ){
   exit( get_val(val) );
   return NIL;
 }
 
-#include "pc-lisp-read2.c"
 
-int is_eq( ATOM a,ATOM b ){
-  return a.atm==b.atm;
-}
+
 
 int equal( ATOM a,ATOM b ){            // are these atoms equivalent?
 EQUAL:
@@ -278,29 +278,8 @@ EQUAL:
   }
   return FALSE;
 }
-/*
- NIL  par  atom  pair  list
-  0    0    X     X     X
-  0    1    0     1    cdr=par
-  1    0    X     0     X
-  1    1    1     0     1
-*/
-int is_pair( ATOM p ){
-  return is_par(p) && ( ! is_null(p) );  // how did I make this mistake?
-}
 
-// FIXME: scheme says a list must have cdr=nil or cdr=pair
-int is_list( ATOM p ){
-  return is_par(p);
-  //return is_par(p) && is_pair( cdr(p) );  // breaks pc-list
-}
-
-int is_atom( ATOM p ){
-  return is_null(p) || ( ! is_par(p) );
-}
 int not( int a ){ return !a; }
-int is_symbol( ATOM a ){ return is_sym(a); }
-int is_null( ATOM a ){ return is_eq( a,NIL ); }  //IS_NIL(p); }
 
 /*
 ATOM set( ATOM var,ATOM val,ATOM env ){
@@ -444,19 +423,19 @@ ATOM evallst( ATOM lst,ATOM env ){
 // need to specially make defined and set! pairs for gc
 
 ATOM evalseq( ATOM seq,ATOM env ){
-  SYM_PEEK( "----------start",seq );
+  //SYM_PEEK( "----------start",seq );
   if ( is_null(seq) )  return NIL;  // r4rs test bug 
   if ( is_null( cdr(seq) ) ){
-    SYM_PEEK( "last",car(seq) );
+    //SYM_PEEK( "last",car(seq) );
     ATOM res = eval( car(seq),env );
-    SYM_PEEK( "last",res );
+    //SYM_PEEK( "last",res );
     return res;
   }
   ATOM ignore = eval( car(seq),env );  // ignore result
-  SYM_PEEK( "mid",ignore );
-  SYM_PEEK( "rest",cdr(seq) );
+  //SYM_PEEK( "mid",ignore );
+  //SYM_PEEK( "rest",cdr(seq) );
   ATOM res = evalseq( cdr(seq),env );
-  SYM_PEEK( "rest",res );
+  //SYM_PEEK( "rest",res );
   return res;
 }
 /*
@@ -527,8 +506,6 @@ ATOM addKVPair3( ATOM kvp,ATOM env ){
   return newlist;
 }
 
-#include "pc-lisp-adt.c"
-#include "pc-lisp-eval-adt.c"
 
 #define LIST_OF_VALUES(exp,env) evallst(exp,env)
 
@@ -642,7 +619,7 @@ ATOM eval(ATOM exp, ATOM env){
   // (lambda (x) (car x)) special form since no eval
   if ( is_lambda(exp) ){
     ATOM proc = make_proc( exp,env );  // eg. ((lambda (x) (car x)) env G)
-    SYM_PEEK( "lambda",proc );
+    //SYM_PEEK( "lambda",proc );
     //exit(1);
     RETURN3( proc );
   }
@@ -825,31 +802,17 @@ ATOM repl(){                            // read eval print loop
   return ret;                             // return last thing
 }
 
-ATOM readString(char *s){  // read eval string and return
-  reads = readp = s;
-  readch = readchString;
-  ungetch = ungetchString;
-  ATOM x=read();
-  readch = readchNormal;
-  ungetch = ungetchNormal;
-  return x;
-}
 
 int main(){  // clang bug
   //boot();  _test();
-  //PEEK( "1",NIL );
   boot();
-  //PEEK( "2",NIL );
   in = stdin;
   setvbuf(in, buf, _IOLBF, BUF_SIZE);  // make stdin use my buffer
-  //PEEK( "3",gEnv );
   repl();
-  //PEEK( "4",NIL );
   /*
   may be only place for this since all atoms must be ???
   */
   _check_mem_leak();
-  //PEEK( "5",NIL );
 
   fprintf( stderr,"Done.\n" );
   fprintf( stderr,"Pairs     =%d\n",consCount  );
@@ -861,4 +824,8 @@ int main(){  // clang bug
   fprintf( stderr,"  Recycled=%d\n",_recycleStrCount );
   return 0;
 }
+
+#endif
+#endif
+
 
