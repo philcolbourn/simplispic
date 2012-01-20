@@ -1,0 +1,244 @@
+"Loading a Toy Scheme Library..."
+;; some necessary symbols
+;(define '. '.)  ; what is this for?
+
+;; alias primitives with nicer names
+(define + iadd)
+(define - isub)
+(define * imul)
+(define / idiv)
+(define modulo imod)
+(define % imod)
+(define eq? eqp)
+(define equal? equalp)
+(define list? listp)
+(define atom? atomp)
+(define pair? pairp)
+(define null? nullp)
+(define < ilt)
+(define > igt)
+(define <= ilte)
+(define >= igte)
+(define = ieq)
+(define print printa)
+(define procedure? procp)
+(define exit exita)
+
+;; this seems a simple way to represent truth
+(define #t @1)  ;; define a symbol '#t' to be a special constant 
+(define #f '())  ;; Lisp, not scheme
+(define else #t)  ;; should be a keyword in cond
+;(define #t '#t)
+(define (not b) (if b () #t)) 
+
+;; simplispic version of equal?
+(define _equal? (lambda (a b)
+  (if (eq? a b) 
+    #t
+    (if (and (pair? a) (pair? b) ) 
+      (if (_equal? (car a) (car b)) 
+          (_equal? (cdr a) (cdr b)) 
+          ()  )
+      ()  )  )  ))
+
+(define (caar a) (car (car a)))
+(define (cadr a) (car (cdr a)))
+(define (cdar a) (cdr (car a)))
+(define (cddr a) (cdr (cdr a)))
+
+(define (caaar a) (car (car (car a))))
+(define (caadr a) (car (car (cdr a))))
+(define (cadar a) (car (cdr (car a))))
+(define (caddr a) (car (cdr (cdr a))))
+
+(define (cdaar a) (cdr (car (car a))))
+(define (cdadr a) (cdr (car (cdr a))))
+(define (cddar a) (cdr (cdr (car a))))
+(define (cdddr a) (cdr (cdr (cdr a))))
+;; 
+
+; (? expect expression)
+; eg (? 3 '(+ 1 2))
+(define ?count 0)  ;; count errors
+
+(define (? expect exp)
+  (printerr exp)
+  (printerr '\ ->\ )
+  (printerr expect)
+  (printerr '\ )
+  ;(define result (eval1 exp))  ;; FIXME: this is bad
+  (let ((result (eval1 exp)))
+    (if (equal? result expect)
+      (begin
+        (printerr 'pass)
+        (printerr '\n)
+        #t  )
+      (begin
+        (set! ?count (+ ?count 1))
+        (printerr 'FAIL\ got\ )
+        ;(printerr '\ )
+        ;(printerr 'got)
+        ;(printerr '\ )
+        (printerr result)
+        (printerr '\n)
+        (if (= ?count 5) (exit) '() )  )  )
+  )   
+)
+
+(define car2 (lambda (x) (car x)))
+
+;; force a promise - force is not a special form
+(define force (lambda (p) (p))) 
+
+;; stream-cdr is not a special form
+(define stream-cdr (lambda (p) (force (cdr p)) ))
+
+;; show n elements of a stream
+(define show-stream (lambda (s n)
+  (if (eq? n 0)
+    '(...)         ;; could not think of a better ending
+    (cons (car s)
+          (show-stream (stream-cdr s) (- n 1))  )  )))
+    
+(define ss show-stream)
+
+;; an expected test
+(define (fact n)  ;; test define syntactic sugar macro
+  (if (= n 0)
+    1
+    (* n (fact (- n 1)))  )  )
+
+           
+;; a version of car, cdr and cons using lambda
+(define kar (lambda (z) (z (lambda (p q) p))))
+(define kdr (lambda (z) (z (lambda (p q) q))))
+(define kons (lambda (x y) (lambda (m) (m x y))))
+
+;; another version that is easier to understand but needs if
+(define kons2 (lambda (a b) (lambda (m) (if (eq? m 1) a b))))
+(define kar2 (lambda (x) (x 1)))
+(define kdr2 (lambda (x) (x 2)))
+
+
+
+;; test harness
+(define test1 (lambda (pred)
+  (if (eval1 pred)
+      'pass
+      (progn (display "FAIL: ") pred)  )  ))
+
+; is atm a member of an improper list?
+(define (member-imp? atm lst)
+  (cond ((null? lst) #f)
+        ((eq? atm (car lst)) #t)
+        ((eq? atm (cdr lst)) #t)
+        (else (member-imp? atm (cdr lst)))  ))
+        
+(? #f '(member-imp? 1 '()))
+;(member-imp? 1 '(2 3))
+(? #f '(member-imp? 1 '(2 3)))
+(? #t '(member-imp? 1 '(1 2 3)))
+(? #t '(member-imp? 4 '(1 2 3 . 4)))
+
+(define pr (lambda (a)
+  (if (atom? a)
+      (print a)
+      (progn (print \() (pr (car a)) (pr (cdr a)) (print \)))  )
+))
+
+;(define eval-cond (lambda (conds bindings)
+;  (if ((eval (car (car conds)) bindings)
+;      (eval (car (cdr (car conds))) bindings))
+;      (eval-cond (cdr conds) bindings)  )  ))
+
+(define (list . args) args)  ; is it this simple?
+(define pc-list2 (lambda args args) )  ; is it this simple?
+(define pc-list3 (lambda (first . rest) (cons first rest) ) )
+
+(define (newline) (display "\n"))
+(define set-car! set_car)
+(define set-cdr! set_cdr)
+
+;(define x 2)
+;(+ x 3)
+;(+ . (list x 3))
+;(+ (list x 3))
+;;.
+(define (_append a b)
+  (cond ((null? a) b)
+        ((null? b) a)
+        (else (cons (car a) (_append (cdr a) b))  )  ))
+
+(define (append . args)
+  (cond ((null? args) '())
+        ((null? (cdr args)) (car args) )
+        (else (_append (car args) (apply append (cdr args))) )  ))
+
+
+(? '(1 2) '(_append '(1 2)))
+;(exit 2)
+(? '(1 2) '(_append '(1 2) '()))
+(? '(1 2) '(_append '() '(1 2)))
+(? '(1 2 3 4) '(_append '(1 2) '(3 4)))
+(? '(1 2 . 3) '(_append '(1 2) 3))
+(? '(1 2 3 . 4) '(_append '(1 2) '(3 . 4)))
+
+            
+(let () (print 1) )
+;no good(let* () (print 1) )
+(let* ((a 1)) (print a) )
+(let* ((a 1) (b (+ a 1))) (print b) )
+(let* ((a 1) (b (+ a 2))) (print a) (print b) )
+
+(define (reverse a)
+  (if (null? a)
+     '()
+     (append (reverse (cdr a)) (list (car a)) )  ))
+     
+(define (gcd a b)
+  (if (= b 0) a
+      (gcd b (modulo a b))))
+      
+(? 1 '(gcd 1 2))      
+(? 1 '(gcd 1 9))      
+(? 9 '(gcd (* 7 9) (* 5 9)))      
+
+(define (gcd-euclid a b)
+  (if (= b 0)
+      a
+      (if (> b a) 
+          (gcd-euclid (- b a) a) 
+          (gcd-euclid (- a b) b)  )))
+(? 1 '(gcd-euclid 1 2))      
+(? 1 '(gcd-euclid 1 9))      
+(? 9 '(gcd-euclid (* 7 9) (* 5 9)))      
+
+(define (for-each proc list)
+  (cond ((null? list) "done")
+        (else (proc (car list))
+              (for-each proc (cdr list) )  )))
+;(? '(1 4 9) '(for-each (lambda (x) (printerr (* x x))) '(1 2 3)))
+
+; another member?
+(define (member? x list)
+     (cond ((null? list) #f)
+           ((not (list? list)) #f)
+           ((equal? x (car list)) #t)
+           (else   (member? x (cdr list)))  ))
+(? #f '(member? 2 '()))
+(? #f '(member? 2 '(1 3)))
+(? #t '(member? 2 '(1 2 3)))
+(? #f '(member? 4 '(1 2 3 . 4)))
+
+;(define ? 1) ; what does redefining this do?
+
+; keep last
+(if (> ?count 0)
+  (begin
+    (printerr "Error: Toy library failed verification tests\n")
+    (printerr 'errors=)
+    (printerr ?count)
+  )
+  (printerr "Note: Toy library passed verification tests\n")
+)
+
