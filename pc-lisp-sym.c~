@@ -1,5 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
+
 #include "pc-lisp.h"
 
 ATOM   kw_quote, kw_lambda, kw_closure, kw_let, kw_let_star, kw_letrec;
@@ -13,7 +12,7 @@ ATOM   kw_cons, kw_list, kw_cons_stream;
 ATOM   tag_env;
 
 
-#include "pc-lisp-print.c"
+//#include "pc-lisp-print.c"
 
 //#define SYM_DEBUG
 
@@ -571,7 +570,7 @@ ATOM eval(ATOM exp, ATOM env){
     */
     //peek( "eval.load: eret(define",ret );
     FILE *f = fopen( strings[ get_str( _2ND(exp) ) ],"r" );
-    if ( f==NULL ) evalExit( "Could not open file",exp,env );
+    EXITIF( f==NULL,"Could not open file",exp );
     FILE *old = in;
     int old_pos=pos;  // FIXME: I don't think this works
     int old_line=line;
@@ -612,10 +611,8 @@ ATOM eval(ATOM exp, ATOM env){
     //SYM_PEEK( "Apply",exp );
     ATOM proc = eval ( _2ND(exp),env );
     //SYM_PEEK( "Apply",proc );
-    if ( is_null( proc ) )
-      evalExit( "User function not defined in environment",exp,env );
-    if ( is_atom( proc ) )
-      evalExit( "User function returned an atom in environment",exp,env );
+    EXITIF( is_null( proc ),"User function not defined in environment",exp );
+    EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = eval( _3RD(exp),env );
     //SYM_PEEK( "Apply",args );
@@ -669,10 +666,8 @@ ATOM eval(ATOM exp, ATOM env){
   if ( is_application(exp) ){
     ATOM proc = eval( app_proc(exp),env );
     //PEEK( "",proc );
-    if ( is_null( proc ) )
-      evalExit( "User function not defined in environment",exp,env );
-    if ( is_atom( proc ) )
-      evalExit( "User function returned an atom in environment",exp,env );
+    EXITIF( is_null( proc ),"User function not defined in environment",exp );
+    EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
     // args are evaluated in current env
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = app_args(exp);
@@ -686,10 +681,8 @@ ATOM eval(ATOM exp, ATOM env){
   PEEK( "SPECIAL APPLICATION",exp );
     ATOM proc = eval( car(exp),env );
     //PEEK( "",proc );
-    if ( is_null( proc ) )
-      evalExit( "User function not defined in environment",exp,env );
-    if ( is_atom( proc ) )
-      evalExit( "User function returned an atom in environment",exp,env );
+    EXITIF( is_null( proc ),"User function not defined in environment",exp );
+    EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
     // args are evaluated in current env
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = LIST_OF_VALUES( cdr(exp),env );
@@ -697,7 +690,7 @@ ATOM eval(ATOM exp, ATOM env){
     ATOM res = apply( proc,args );
     RETURN3( res );
   // what about labels? other forms?
-  evalExit( "I can't do this for some reason: ",exp,env );
+  EXIT( "I can't do this for some reason.",cons( exp,env ) );
   return NIL;  // silence clang warning
 }
 
@@ -830,6 +823,16 @@ ATOM repl(){                            // read eval print loop
   _ms( gEnv );
   //PEEK( "7",NIL );
   return ret;                             // return last thing
+}
+
+ATOM readString(char *s){  // read eval string and return
+  reads = readp = s;
+  readch = readchString;
+  ungetch = ungetchString;
+  ATOM x=read();
+  readch = readchNormal;
+  ungetch = ungetchNormal;
+  return x;
 }
 
 int main(){  // clang bug

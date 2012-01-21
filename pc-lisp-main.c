@@ -10,21 +10,25 @@
 #ifdef __header
 
 // HEADER
+#include <string.h>
 
-//#include "pc-lisp.h"
 #include "pc-lisp-mem.c"
+#include "pc-lisp-gc.c"
 #include "pc-lisp-test.c"
+#include "pc-lisp-misc.c"
 #include "pc-lisp-read2.c"
 #include "pc-lisp-print.c"
 #include "pc-lisp-primitives.c"
 #include "pc-lisp-adt.c"
 #include "pc-lisp-eval-adt.c"
 
+#define TRUE     ( 1==1 )
+#define FALSE    ( 1==0 )
+
 #define BOOL( pred ) ( (pred) ? (TRU) : (NIL) )
 #define RET_BOOL( pred ) return BOOL( pred )
 #define EQ_TAG(a,b)  ( get_tag(a)==get_tag(b) )
 #define NE_TAG(a,b)  ( ! EQ_TAG(a,b) )
-
 
 //typedef unsigned char CHAR;
 
@@ -32,17 +36,12 @@
 extern ATOM (*primFns[SIZE])();
 extern int    freeFun;
 
-
 //#define MAKE_ATOM(tag,val) (ATOM){.val=(val), .tag=(tag)}
 //#define MAKE_PRIM(cfn)  (ATOM){.pfnval=(cfn), .pfntag=PFN}
-
-
 
 #define FALSEIF( pred )  if ( pred ) return FALSE;
 #define TRUEIF( pred )   if ( pred ) return TRUE;
 extern ATOM    gEnv;             // global environment
-
-
 
 void    boot();            // warm-boot interpreter
 // predicates
@@ -61,39 +60,41 @@ ATOM    exita( ATOM val );
 //ATOM    readLoop();
 ATOM    repl();
 ATOM    readString( char *s );
-void    _strcpy( char *d,char *s,int n );
+void   _strcpy( char *d,char *s,int n );
 
-ATOM assoc2( ATOM sym,ATOM env );
-ATOM assoc_kvp( ATOM sym,ATOM env );
-ATOM make_env();
-ATOM extend_env( ATOM env );
-ATOM env_find_kvp( ATOM env );
-ATOM evallst( ATOM lst,ATOM env );
-ATOM evalseq( ATOM seq,ATOM env );
-ATOM make_frame( ATOM alst,ATOM env );
-ATOM addKVPair3( ATOM kvp,ATOM env );
-int loop;
-ATOM _global_save;
+ATOM    assoc2( ATOM sym,ATOM env );
+ATOM    assoc_kvp( ATOM sym,ATOM env );
+ATOM    make_env();
+ATOM    extend_env( ATOM env );
+ATOM    env_find_kvp( ATOM env );
+ATOM    evallst( ATOM lst,ATOM env );
+ATOM    evalseq( ATOM seq,ATOM env );
+ATOM    make_frame( ATOM alst,ATOM env );
+ATOM    addKVPair3( ATOM kvp,ATOM env );
 
-ATOM repl();
-int main();
+extern int loop;
+
+extern ATOM   _global_save;
+
+ATOM    repl();
+int     main();
 
 // END HEADER
+
 #endif
 
 #if defined(_pc_lisp_main_c)
 
 // CODE
 
-ATOM (*primFns[SIZE])();
+ATOM   gEnv    = NIL;     // global environment
 
+ATOM (*primFns[SIZE])();
 
 ATOM _bad_primative_fn(){
   fprintf( stderr, "ERROR: Undefined primitive function.\n" );
   exit(1);
 }
-
-
 
 #define REGISTER_PRIMITIVES_0(i,n)                               \
 {                                                                \
@@ -135,24 +136,41 @@ void boot(){
   int i;
   fputs( "Booting...\n",stderr );
   freePairs = make_par(1);               // [1] is first free pair
-  usedPairs = make_par(0);               // [0] is used from begining
+
   for (i=0; i<SIZE; i++){
     ATOM p = make_par(i);       
+    _set_car( p,MTY );  // do before chaining into freelist
+    _set_cdr( p,MTY );
+    _set_gcm( p,0 );                       // mark all in use
+    _set_mrk( p,0 );
+    _set_ref( p,0 );
     _set_mem( p,make_mem( (i+1)%SIZE ) );  // chain free cells
-    //if ( i>=2 ){
-      _set_car( p,MTY );
-      _set_cdr( p,MTY );
-      _set_gcm( p,0 );                       // mark all in use
-      _set_mrk( p,0 );
-    //}
+    //_set_bak( p,make_bak( (i-1)%SIZE ) );
     symbols[i].name[0] = 0;
     _strcpy( symbols[i].name,"UNDEF SYM",10 );
     strings[i]         = "UNDEF STR";
     primFns[i]         = _bad_primative_fn;
     sar[i].val         = 0;
   }
+  usedPairs = make_par(0);               // [0] is used from begining
+  _set_mem( usedPairs,usedPairs );  // make circular
+  _set_bak( usedPairs,usedPairs );
+  //recycleSweeper = usedPairs;
+  lastUsedPair = usedPairs;
+  //exit(1);
+  fputs( "Create global environment...\n",stderr );
+  //MARK3;
+  //exit(1);
+  gEnv    = cons( NIL,NIL );  // global environment -> empty environment 
+  //exit(1);
+  _inc_ref( gEnv );  // interpreter hold ref on environment
+  GLOBAL_MARK3;
+  lastUsedPair = gEnv;  // hack?
+  _mem_print_used_pairs( "gEnv",gEnv,_global_save );
+  //exit(1);
   _set_car( usedPairs,readString( "\"*used pairs*\"" ) );
-  _set_mem( usedPairs,NIL );  // need to fix used ist
+  //_cm_check_mem();
+  //exit(1);
 /*
   // test free and used lists
   dump(5);
@@ -174,9 +192,6 @@ void boot(){
   //ATOM globals = readString("globals" );  // make a globals symbol
   // FIXME: make frame ADT?
 
-  fputs( "Create global environment...\n",stderr );
-  MARK3;
-  gEnv    = cons( NIL,NIL );  // global environment -> empty environment 
 
   fputs( "Create keyword symbols...\n",stderr );
   kw_quote       = readString( "quote"       );  
@@ -207,7 +222,12 @@ void boot(){
 
   fputs( "Create primitive procedures...\n",stderr );
   REGISTER_PRIMITIVES_1(  1,car     );
+  //exit(1);
+  PEEK( "",gEnv );
+  //exit(1);
   REGISTER_PRIMITIVES_1(  2,cdr     );
+  PEEK( "",gEnv );
+  //exit(1);
   REGISTER_PRIMITIVES_2(  3,cons    );
   REGISTER_PRIMITIVES_2(  4,iadd    );
   REGISTER_PRIMITIVES_2(  5,isub    );
@@ -242,24 +262,21 @@ void boot(){
   //REGISTER_PRIMITIVES_1( 34,set     );
   REGISTER_PRIMITIVES_1( 34,printerr);
   REGISTER_PRIMITIVES_1( 35,exita   );
+  REGISTER_PRIMITIVES_1( 36,disperr );
   
   fputs( "Booted.\n",stderr );
-  KEEP3(gEnv);  // FAILS
+  //KEEP3(gEnv);  // FAILS
   //KEEP3( cdr(pcar) );  // correct, assuming all these will be defines
-  _check_mem();  // OK
+  _cm_check_mem();  // OK
   //exit(1);
-  _check_mem_leak();  
+  //_cm_check_mem_leak();  
   fputs( "Booted and memory checked.\n",stderr );
 }
-
 
 ATOM exita( ATOM val ){
   exit( get_val(val) );
   return NIL;
 }
-
-
-
 
 int equal( ATOM a,ATOM b ){            // are these atoms equivalent?
 EQUAL:
@@ -326,6 +343,7 @@ ASSOC:
   if ( ! is_null(res) )  return res;
   return assoc( sym,cdr(env) );
 }
+
 // env is list of frames, a frame is an alist
 ATOM assoc2( ATOM sym,ATOM env ){         // eg. ( (k.v) ((k.v) (k.v)) 
 ASSOC2:
@@ -405,11 +423,6 @@ ASSOC2:
 }
 */
 
-//ATOM map(ATOM f, ATOM l){
-//  if IS_NIL(l) return NIL;
-//  return cons( eval( f,CAR(l) ),map( f,CDR(l)) ); cons(f,CAR(l))???
-//}
-
 ATOM evallst( ATOM lst,ATOM env ){
   //fprintf(stderr,"."     );
   if ( is_null(lst) ) return NIL; //RETURN( NIL );
@@ -426,9 +439,9 @@ ATOM evalseq( ATOM seq,ATOM env ){
   //SYM_PEEK( "----------start",seq );
   if ( is_null(seq) )  return NIL;  // r4rs test bug 
   if ( is_null( cdr(seq) ) ){
-    //SYM_PEEK( "last",car(seq) );
+    //PEEK( "last",car(seq) );
     ATOM res = eval( car(seq),env );
-    //SYM_PEEK( "last",res );
+    //PEEK( "last",res );
     return res;
   }
   ATOM ignore = eval( car(seq),env );  // ignore result
@@ -451,8 +464,7 @@ ATOM extendEnv( ATOM env ){
 }
 */
 
-//#define ENV_FRAME(env) CAR(env)
-//#define ENV_BASE(env) CDR(env)
+
 /*
 a frame should also be a table eg. (frame (k.v) (k.v) ...)
 */
@@ -472,14 +484,6 @@ a frame should also be a table eg. (frame (k.v) (k.v) ...)
 //          p-->[k][v]    v  
 //                       [k][v]
 
-
-/*
-ATOM addKVPair( ATOM kvp,ATOM env ){
-  ATOM fra = cons( kvp,car(env) );
-  setcar( env,fra );
-  return fra;
-}
-*/
 ATOM make_frame( ATOM alst,ATOM env ){
   //ATOM fra = cons( alst,car(env) );
   ATOM fra = cons( alst,env );
@@ -491,21 +495,23 @@ ATOM make_frame( ATOM alst,ATOM env ){
   ATOM newlist = cons( kvp,oldlist );
   setcar( env,newlist );
 */
+// add kvp to frame
 ATOM addKVPair3( ATOM kvp,ATOM env ){
+  //PEEK( "",kvp );
   //PEEK( "",env );
   EXITIF( ! is_kvp( kvp ),"kvp is not a key-value-pair",kvp );
-  //PEEKEXITIF( ! is_alist( env ),"kvp is not a key-value-pair",kvp );
   ATOM oldlist = car( env );
-  //PEEK( "",kvp );
-  //PEEK( "",oldlist );
+  //PEEK( "1",oldlist );
   EXITIF( ! is_alist( oldlist ),"oldlist is not an alist",oldlist );
-  //exit(1);
+  //PEEK( "2",oldlist );
   ATOM newlist = extend_alist( kvp,oldlist );
-  set_gcm( newlist,2 );  // FIXME: hack!
+  //PEEK( "3",newlist );
+  //set_gcm( newlist,2 );  // FIXME: hack!
   set_car( env,newlist );
+  
+  //PEEK( "done",newlist );
   return newlist;
 }
-
 
 #define LIST_OF_VALUES(exp,env) evallst(exp,env)
 
@@ -513,7 +519,7 @@ int loop=0;
 ATOM eval(ATOM exp, ATOM env){
   ATOM e;
   //PEEK( "**********",exp );
-  //SYM_PEEK( "",env );
+  //PEEK( "**********",env );
   //loop++;
   if ( is_self_eval(exp) ) return exp;                        // () -3 "str" c
   if ( is_variable(exp)  ) return variable_value( exp,env );  // x -> 4
@@ -559,8 +565,11 @@ ATOM eval(ATOM exp, ATOM env){
 
     //SYM_PEEK( "",exp );
     GLOBAL_KEEP3( NIL );   // get rid of (load "filename" )
+    _cm_check_mem();
     ATOM ret = repl();
-    //SYM_PEEK( "",ret );
+    //PEEK( "A",ret );
+    _cm_check_mem();
+    //PEEK( "Z",ret );
     fclose(f);
     in = old;
   //setvbuf(in, buf, _IOLBF, BUF_SIZE);  // make file use my buffer
@@ -783,45 +792,58 @@ ATOM repl(){                            // read eval print loop
 // FIXME: delete
 //   else{
       ret = r;
+      //PEEK( "ret",r );
       printa( ret );                        // this is read-eval-print bit
-      //PEEK( "Print:",ret );
+      PEEK( "Print:",ret );
+      _cm_check_mem();
       GLOBAL_KEEP3( NIL );
+      _cm_check_mem();
+      //PEEK( "X",ret );
       // FIXME: maybe keep first kvp in env? and pair?
 //    }
     //GLOBAL_KEEP3( gEnv );
     //exit(1);
     //PEEK( "4",NIL );
-    _check_mem();
+    _ms( gEnv );
+    _cm_check_mem();
     //PEEK( "5",NIL );
     puts( "" );
   }
-  //PEEK( "6",NIL );
-  GLOBAL_KEEP3( gEnv );  // FIXME: redundant now?
-  _ms( gEnv );
-  //PEEK( "7",NIL );
+  //PEEK( "Before keep3",gEnv );
+  //GLOBAL_KEEP3( gEnv );  // FIXME: redundant now?
+  //_ms( gEnv );
+  _cm_check_mem();
+  //_cm_check_mem_leak();
+  //PEEK( "After keep2",gEnv );
+  //PEEK( "return",gEnv );
   return ret;                             // return last thing
 }
 
 
 int main(){  // clang bug
   //boot();  _test();
+  fprintf( stderr,"\n\n\n\n\n\n\n\n\n\nStart\n" );
   boot();
   in = stdin;
   setvbuf(in, buf, _IOLBF, BUF_SIZE);  // make stdin use my buffer
   repl();
+  PEEK( "",gEnv );
   /*
   may be only place for this since all atoms must be ???
   */
-  _check_mem_leak();
+  //_cm_check_mem_leak();
 
   fprintf( stderr,"Done.\n" );
-  fprintf( stderr,"Pairs     =%d\n",consCount  );
-  fprintf( stderr,"Max Pairs =%d\n",consMaxCount  );
+  fprintf( stderr,"Used Pairs=%d\n",_usedPairCount  );
+  fprintf( stderr,"  Max Used=%d\n",_usedPairMaxCount  );
+  fprintf( stderr,"Free Pairs=%d\n",_freePairCount  );
+  fprintf( stderr," Free+Used=%d\n",_freePairCount+_usedPairCount  );
   fprintf( stderr,"  Recycled=%d\n",_recyclePairCount );
+  fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
   fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
   fprintf( stderr,"Symbols   =%d\n",freeSym );
   fprintf( stderr,"Strings   =%d\n",freeStr );
-  fprintf( stderr,"  Recycled=%d\n",_recycleStrCount );
+  //fprintf( stderr,"  Recycled=%d\n",_recycleStrCount );
   return 0;
 }
 

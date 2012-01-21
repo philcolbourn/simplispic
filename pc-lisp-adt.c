@@ -37,23 +37,23 @@ ATOM    proc_lambda( ATOM proc );
 ATOM    proc_env   ( ATOM proc );
 
 ATOM    make_primitive( ATOM form,ATOM cfun );
-int     is_primitive   ( ATOM prim );
+int     is_primitive  ( ATOM prim );
 ATOM    primitive_form( ATOM prim );
 ATOM    primitive_cfun( ATOM prim );
 
-ATOM    make_alist  ( ATOM keys,ATOM vals );
-ATOM    extend_alist( ATOM kvp,ATOM alst );
-int     is_alist    ( ATOM alst );
-ATOM    alist_assoc ( ATOM key,ATOM alst );
-ATOM    alist_find  ( ATOM key,ATOM alst );
-ATOM    alist_keys  ( ATOM alst );
-ATOM    alist_vals  ( ATOM alst );
-ATOM    alist_car_vals  ( ATOM alst );
+ATOM    make_alist    ( ATOM keys,ATOM vals );
+ATOM    extend_alist  ( ATOM kvp,ATOM alst );
+int     is_alist      ( ATOM alst );
+ATOM    alist_assoc   ( ATOM key,ATOM alst );
+ATOM    alist_find    ( ATOM key,ATOM alst );
+ATOM    alist_keys    ( ATOM alst );
+ATOM    alist_vals    ( ATOM alst );
+ATOM    alist_car_vals( ATOM alst );
 
-ATOM make_app( ATOM proc,ATOM args );
-int is_app( ATOM app );
-ATOM app_proc( ATOM app );
-ATOM app_args( ATOM app );
+ATOM    make_app( ATOM proc,ATOM args );
+int     is_app  ( ATOM app );
+ATOM    app_proc( ATOM app );
+ATOM    app_args( ATOM app );
 
 #endif
 
@@ -69,14 +69,11 @@ key value pair ADT
 ATOM make_kvp( ATOM key,ATOM val ){
   // FIXME: key could be a list
   EXITIF( ! is_atom( key ),"key is not an atom",key );
-  //EXITIF( ! is_symbol( key ),"key is not a symbol",key );
   ATOM kvp = cons( key,val );
   return kvp;
 }
 
 int is_kvp( ATOM kvp ){
-  //peek( "kvp",kvp );
-  //return is_pair( kvp ) && is_symbol( car( kvp ) );
   return is_pair( kvp ) && is_atom( car( kvp ) );
 }
 
@@ -109,19 +106,10 @@ ATOM kvp_val( ATOM kvp ){
 a,(1 2) -> ( (a . (1 2)) )
 (a . b),(1 2 3 4 5) -> ( (a . 1) (b . (2 3 4 5)) )
 */
-//#define ALIST_DEBUG
-#ifdef ALIST_DEBUG                                         
-  #define ALIST_DEBUG_LINE( m ) \
-    fprintf( stderr,m " %s line %d\n",__FILE__,__LINE__ );
-  #define ALIST_PEEK( m,a ) PEEK( m,a )
-#else
-  #define ALIST_DEBUG_LINE( m )
-  #define ALIST_PEEK( m,a )
-#endif
 
 ATOM make_alist( ATOM keys,ATOM vals ){  // (a b),(1 2) -> ((a . 1)(b . 2))
-  ALIST_PEEK( "",keys );
-  ALIST_PEEK( "",vals );
+  //ALIST_PEEK( "",keys );
+  //ALIST_PEEK( "",vals );
   if ( is_null(keys) )
     if ( is_null(vals) ) return NIL;
     else EXIT( "Not enough keys for values",vals );
@@ -138,13 +126,13 @@ ATOM make_alist( ATOM keys,ATOM vals ){  // (a b),(1 2) -> ((a . 1)(b . 2))
     
   ATOM kvp = make_kvp( car(keys),car(vals) );
   ATOM alst = cons( kvp,make_alist( cdr(keys),cdr(vals) ) );
-  ALIST_PEEK( "",alst );
+  //ALIST_PEEK( "",alst );
   EXITIF( ! is_alist( alst ),"alst is not an associative list",alst );  
   return alst;
 }
 
 ATOM extend_alist( ATOM kvp,ATOM alst ){
-  ALIST_PEEK( "",kvp );
+  //PEEK( "",kvp );
   EXITIF( ! is_kvp( kvp ),"kvp is not a key-value pair",kvp );
 /*
   FILE *old = in;
@@ -158,21 +146,22 @@ ATOM extend_alist( ATOM kvp,ATOM alst ){
   fclose(f);
   in = old;
 /**/
-  ALIST_PEEK( "",alst );
+  //PEEK( "",alst );
   EXITIF( ! is_alist( alst ),"alst is not an associative list",alst );
   ATOM res = cons( kvp,alst );
   EXITIF( ! is_alist( res ),"alst is not an associative list",res );
-  ALIST_PEEK( "",res );
+  //PEEK( "",res );
   return res;  
 }
 
 int is_alist( ATOM alst ){
-  //ALIST_PEEK( "",alst );
+  //PEEK( "",alst );
   if ( is_null(alst) ) return TRUE;  // FIXME: is NIL and alist?
   if ( is_atom(alst) ) return FALSE;
   if ( ! is_kvp( car(alst) ) ) return FALSE;
   // turned on
-  if ( ! is_alist( cdr(alst) ) ) return FALSE;  // test whole alist
+  //PEEK( "",alst );
+  //if ( ! is_alist( cdr(alst) ) ) return FALSE;  // test whole alist
   return TRUE;
 }
 
@@ -205,7 +194,7 @@ ATOM alist_car_vals( ATOM alst ){
 */
 // return kvp
 ATOM alist_assoc( ATOM key,ATOM alst ){
-  ALIST_PEEK( "",key );
+  //ALIST_PEEK( "",key );
   //ALIST_PEEK( "",alst );
   EXITIF( ! is_atom(key),"key is not an atom",key );
   EXITIF( ! is_alist(alst),"alst is not an alist",alst );

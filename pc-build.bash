@@ -22,9 +22,10 @@
 
 # make interpreter
 #gcc pc-lisp-integer.c
-PROJ="pc-lisp-main.c pc-lisp-print.c pc-lisp-read2.c pc-lisp-mem.c\
- pc-lisp-adt.c  pc-lisp-eval-adt.c  pc-lisp-test.c  pc-lisp-primitives.c\
-"
+PROJ="pc-lisp-main.c pc-lisp-print.c pc-lisp-read2.c \
+  pc-lisp-mem.c pc-lisp-gc.c pc-lisp-pair.c pc-lisp-misc.c \
+ pc-lisp-adt.c  pc-lisp-eval-adt.c  pc-lisp-test.c  pc-lisp-primitives.c \
+ "
 clang -ggdb -Wno-comment -O0 $PROJ
 if [ "$?" != "0" ]; then exit 1; fi
 cp a.out a.clang.out

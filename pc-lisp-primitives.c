@@ -25,6 +25,7 @@ MAKE_PRIMITIVE_1( cdr );
 MAKE_PRIMITIVE_1( display );
 MAKE_PRIMITIVE_1( printa );
 MAKE_PRIMITIVE_1( printerr );
+MAKE_PRIMITIVE_1( disperr );
 //MAKE_PRIMITIVE_1( list );  // FIXME: how to do vargs?
 //MAKE_PRIMITIVE_1( eval1 );
 MAKE_PRIMITIVE_1( exita );
@@ -154,6 +155,7 @@ MAKE_PRIMITIVE_1( cdr );
 MAKE_PRIMITIVE_1( display );
 MAKE_PRIMITIVE_1( printa );
 MAKE_PRIMITIVE_1( printerr );
+MAKE_PRIMITIVE_1( disperr );
 //MAKE_PRIMITIVE_1( list );  // FIXME: how to do vargs?
 //MAKE_PRIMITIVE_1( eval1 );
 MAKE_PRIMITIVE_1( exita );

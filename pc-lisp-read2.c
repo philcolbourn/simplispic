@@ -29,6 +29,9 @@
 #define NUL      ( '\0' )
 #define BUF_SIZE ((1<<8)-1)  //make 2^N-1 for efficiency
 
+#define EOL          MAKE_CHR( ')' )
+#define EOP          MAKE_CHR( DOT )
+#define END          MAKE_CHR( EOF )
 
 enum {POS=1, NEG=-1};
 
@@ -336,7 +339,9 @@ ATOM eval_macros( ATOM exp ){
 
 ATOM read(){
   ATOM t = read_token();
-  //READ_PEEK( "",t );  
+  //PEEK( "",t );  
+  //_mem_print_used_pairs( "gEnv",gEnv,_global_save );
+
   if ( is_eq( t,make_chr(EOF) ) )   return t;
   if ( is_sym(t) )                  return t;
   if ( is_num(t) )                  return t;
@@ -480,9 +485,36 @@ ATOM readCON(){
   fprinta( stderr,sym );
   return sym;
 }
-
-
+/*
+(define (readLST)
+  (let ((t (read)))
+    (cond ( (is_close_paren? t) nil)
+          ( (is_dot? t) (let ((cdr (read)) (read) cdr)))
+          (else (cons t (readLST)) ))  )
+)
+*/
 ATOM readLST(){
+  ATOM t = read();
+  if ( is_eq( t,EOL ) )  return NIL;  // got EOL
+  if ( is_eq( t,EOP ) ){  // got '.' of pair
+    ATOM cdr = read();
+    EXITIF( is_eq( cdr,END ),"Got EOF after '.'",NIL );
+    WARNIF( is_eq( cdr,EOL ),"Got ')' after '.' - assumed ')'",NIL );
+    ATOM ignore = read();
+    EXITIF( ! is_eq( ignore,EOL ),"Expecting ')' after cdr",cdr );
+    //PEEK( "",cdr );
+    return cdr;
+  }  
+  EXITIF( is_eq( t,END ),"Got EOF - expecting ')'",NIL );
+  ATOM rest = readLST();
+  //PEEK( "",rest );
+  ATOM ret = cons( t,rest );
+  EXITIF( is_null(ret),"No free pairs for this list or pair",rest );
+  //PEEK( "",ret );
+  return ret;
+}
+
+ATOM readLST_old(){
   ATOM t = read();
   if ( is_eq( t,EOL ) )  return NIL;
   EXITIF( is_eq( t,END ),"Got EOF after '('",NIL );
@@ -513,11 +545,14 @@ ATOM readQUOTE(){
   ATOM res = cons( kw_quote,lst );
   return res;
 }
+
 ATOM readString(char *s){  // read eval string and return
   reads = readp = s;
   readch = readchString;
   ungetch = ungetchString;
-  ATOM x=read();
+  //PEEK( "",NIL );
+  ATOM x = read();
+  //PEEK( "",x );
   readch = readchNormal;
   ungetch = ungetchNormal;
   return x;

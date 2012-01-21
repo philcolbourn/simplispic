@@ -238,21 +238,31 @@ ATOM definition_value( ATOM exp ){
 
 // (define sym val) special form since sym is not evaluated
 ATOM eval_definition( ATOM exp,ATOM env ){
+  //PEEK( "start",exp );
   MARK3;
-  //PEEK( "",exp );
+  //_mem_print_used_pairs( "used",usedPairs,_save );
   //PEEK( "",env );
   ATOM sym    = _2ND( exp );
   //PEEK( "",sym );
   ATOM val    = eval( _3RD(exp),env ); // we must (eval value)
   //PEEK( "",val );
   ATOM kvp    = make_kvp( sym,val );
+  //_mem_print_used_pairs( "used",usedPairs,_save );
   //PEEK( "",kvp );
-  _mark_assignments_as_special( kvp );
+  //_gc_mark_assignments_as_special( kvp );
+  //fprintf( stderr,"", );
+  //_mem_print_used_pairs( "BEFORE used",usedPairs,_save );
+  //_env_preserve_changes( _save );
+  //_mem_print_used_pairs( "AFTER used",usedPairs,_save );
+  //exit(1);
+  //PEEK( "",kvp );
   ATOM fra = addKVPair3( kvp,env );
+  //_mem_print_used_pairs( "AFTER ADD used",usedPairs,_save );
   //ATOM def = cons( kw_define,fra );  // need special return to keep all
-  //PEEK( "",fra );  
+  //PEEK( "done",fra );  
   //RETURN3( def );
-  RETURN3( sym );
+  //RETURN3( kvp );
+  RETURN3( sym );  // works for returning name
 }
 
 // (set! sym val) special form since sym is not evaluated
@@ -268,10 +278,14 @@ ATOM eval_set( ATOM exp,ATOM env ){
   //PEEK( "",kvp );
   EXITIF( is_null( kvp ),"sym not found in environment",sym );
   ATOM res = set_cdr( kvp,val );
-  _mark_assignments_as_special( res );
+  // should be able to gc here
+  //_ms( kvp );
+  //_env_preserve_changes( val );  // kvp is already safely? in frame
+  //_gc_mark_assignments_as_special( res );
   //PEEK( "",kvp );
 //  ATOM set = cons( kw_set,kvp );  // need special return to keep all
 //  PEEK( "",set );  
+  //RETURN3( kvp );
   RETURN3( sym );
 }
 
