@@ -12,7 +12,9 @@
 
 // HEADER
 
-//#include "pc-lisp.h"
+#include "pc-lisp-mem.c"
+#include "pc-lisp-gc.c"
+#include "pc-lisp-pair.c"
 #include "pc-lisp-test.c"
 #include "pc-lisp-print.c"
 #include "pc-lisp-adt.c"
@@ -82,6 +84,7 @@ static ATOM    readQUOTE   ();
 static ATOM    readCON     ();
 
 // END HEADER
+
 #endif
 
 #if defined(_pc_lisp_read2_c)
@@ -112,6 +115,8 @@ static int  (*readch)()         = readchNormal;
 static void (*ungetch)( int c ) = ungetchNormal;
 
 FILE  *in;  // added for (load ...)
+
+// FIXME: put something like this back
 
 /*
 void readExit(char *m){
@@ -154,8 +159,6 @@ int readchString(){
   //fputc( c,stderr );     // does not print EOF
   return c;
 }
-
-
 
 void ungetchNormal( int c ){
   EXITIF( next2c!=0,"Can't ungetch more than 2 characters",NIL );
@@ -218,7 +221,6 @@ int getNUMch(){
   return -c;
 }
 
-
 ATOM read_token(){
   int c;
   SKIP:
@@ -257,9 +259,9 @@ ATOM let_star_to_let( ATOM kvps,ATOM body ){
   ATOM exp = let_star_to_let( cdr(kvps),body );
   ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
   ATOM let = cons( kw_let,cons( kvp,exp ) );
-  PEEK( "",let );
+  //PEEK( "",let );
   ATOM res = eval_macros( let );
-  PEEK( "",res );
+  //PEEK( "",res );
   return res;
 }
 
@@ -267,7 +269,7 @@ ATOM eval_macros( ATOM exp ){
   // (define (<name> <form>) <body>) -> (define <name> (lambda (<form>) <body>))
   if ( match_taglist( exp,kw_define ) ){
     if ( is_list( _2ND( exp ) ) ){
-      PEEK( "found define",exp );
+      //PEEK( "found define",exp );
       ATOM name = car( _2ND( exp ) );
       ATOM form = cdr( _2ND( exp ) );
       ATOM body = _Rfrom3( exp );
@@ -282,7 +284,7 @@ ATOM eval_macros( ATOM exp ){
   // (let ((x 1) (y 2)) <body>) -> ((lambda (x y) <body>) 1 2)
   if ( match_taglist( exp,kw_let ) ){
     //if ( is_alist( _2ND(exp) ) ){
-      PEEK( "found let",exp );
+      //PEEK( "found let",exp );
       ATOM form = alist_keys( _2ND(exp) );  // get formal parameter names
       //PEEK( "",form );
       // FIXME: i don't like let's syntax: when read ((a 1) (b 2)) are lists
@@ -305,7 +307,7 @@ ATOM eval_macros( ATOM exp ){
 */
   if ( match_taglist( exp,kw_let_star ) ){
     //if ( is_alist( _2ND(exp) ) ){
-      PEEK( "found let*",exp );
+      //PEEK( "found let*",exp );
       ATOM kvps = _2ND( exp );
       ATOM body = _Rfrom3( exp );
       ATOM res = let_star_to_let( kvps,body );

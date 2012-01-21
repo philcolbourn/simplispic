@@ -565,7 +565,7 @@ ATOM eval(ATOM exp, ATOM env){
 
     //SYM_PEEK( "",exp );
     GLOBAL_KEEP3( NIL );   // get rid of (load "filename" )
-    _cm_check_mem();
+    //_cm_check_mem();
     ATOM ret = repl();
     //PEEK( "A",ret );
     _cm_check_mem();
@@ -664,7 +664,7 @@ ATOM eval(ATOM exp, ATOM env){
     RETURN3( res );
   }
   // FIXME: try an application
-  PEEK( "SPECIAL APPLICATION",exp );
+  //PEEK( "SPECIAL APPLICATION",exp );
     ATOM proc = eval( car(exp),env );
     //PEEK( "",proc );
     EXITIF( is_null( proc ),"User function not defined in environment",exp );
@@ -744,9 +744,11 @@ ATOM repl(){                            // read eval print loop
       fputs( "EOF\n", stderr );
       break;
     }
-    fputs( "========================================\n", stderr );
+    ////fputs( "========================================\n", stderr );
+    printa( exp );
+    puts( "" );
     //PEEK( "Env  : ",gEnv );
-    PEEK( "Read: ",exp );
+    ////PEEK( "Read: ",exp );
     //peek( "Read : ",exp );
     ATOM r = eval( exp,gEnv );
     //fputs( "Print: ", stderr );
@@ -794,10 +796,10 @@ ATOM repl(){                            // read eval print loop
       ret = r;
       //PEEK( "ret",r );
       printa( ret );                        // this is read-eval-print bit
-      PEEK( "Print:",ret );
-      _cm_check_mem();
+      //PEEK( "Print:",ret );
+      //_cm_check_mem();
       GLOBAL_KEEP3( NIL );
-      _cm_check_mem();
+      //_cm_check_mem();
       //PEEK( "X",ret );
       // FIXME: maybe keep first kvp in env? and pair?
 //    }
@@ -827,7 +829,7 @@ int main(){  // clang bug
   in = stdin;
   setvbuf(in, buf, _IOLBF, BUF_SIZE);  // make stdin use my buffer
   repl();
-  PEEK( "",gEnv );
+  //PEEK( "",gEnv );
   /*
   may be only place for this since all atoms must be ???
   */

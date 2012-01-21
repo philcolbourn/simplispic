@@ -55,10 +55,12 @@
 (define (cdadr a) (cdr (car (cdr a))))
 (define (cddar a) (cdr (cdr (car a))))
 (define (cdddr a) (cdr (cdr (cdr a))))
-;; 
+
+;;;;;;;;; test harness
 
 ; (? expect expression)
 ; eg (? 3 '(+ 1 2))
+
 (define ?count 0)  ;; count errors
 
 (define (? expect exp)
@@ -85,15 +87,80 @@
   )   
 )
 
-(define car2 (lambda (x) (car x)))
+(define (?a expect exp args)
+  (printerr (cons exp args))
+  (printerr '\ ->\ )
+  (printerr expect)
+  (printerr '\ )
+  ;(define result (eval1 exp))  ;; FIXME: this is bad
+  (let ((result (apply exp args)))
+    (if (equal? result expect)
+      (begin
+        (printerr 'pass)
+        (printerr '\n)
+        #t  )
+      (begin
+        (set! ?count (+ ?count 1))
+        (printerr 'FAIL\ got\ )
+        ;(printerr '\ )
+        ;(printerr 'got)
+        ;(printerr '\ )
+        (printerr result)
+        (printerr '\n)
+        (if (= ?count 5) (exit) '() )  )  )
+  )   
+)
+
+
+(define (?atoms exp)
+  (?a '0 exp '(0))
+  (?a '1 exp '(1))
+  (?a '() exp '(()))
+  (?a 'sym exp '(sym))
+  (?a "string" exp '("string"))  )
+
+(define (?lists exp)
+  (?a '() exp '(()))
+  (?a '(1) exp '((1)))
+  (?a '(1 2) exp '((1 2)))
+  (?a '(1 2 3) exp '((1 2 3)))
+  (?a '(1 (2) 3) exp '((1 (2) 3)))
+  (?a exp exp (cons exp '()))
+    )
+
+(define (?all exp)
+  (?atoms exp)
+  (?lists exp)  )
+
+(?all (lambda (a) (car (cons a 0))) )
+
+;; identity procedure
+
+(define I (lambda (x) x))
+
+;(? I '(I I))
+(?all I)
 
 ;; force a promise - force is not a special form
+
 (define force (lambda (p) (p))) 
+(define d (delay (cons 1 d)))
+d
+(? '(lambda () (cons 1 d)) '(cadr d))  ;; not evaluated yet
+(? '1 '(car (force d)))                ;; now car should be 1
+(force d)
+(cdr (force d))
+(? '(lambda () (cons 1 d)) '(caddr (force d)))  ;; 3rd should be promise
+(? '1 '(car (force (cdr (force d)))))          ;; 
+;(?all ??  (lambda (x) (force (delay x)))  )
+
 
 ;; stream-cdr is not a special form
+
 (define stream-cdr (lambda (p) (force (cdr p)) ))
 
 ;; show n elements of a stream
+
 (define show-stream (lambda (s n)
   (if (eq? n 0)
     '(...)         ;; could not think of a better ending
@@ -102,32 +169,57 @@
     
 (define ss show-stream)
 
+(define (newline) (display "\n"))
+
+(define set-car! set_car)
+(define set-cdr! set_cdr)
+
+(define x '(1 2 3))
+;x
+(set-cdr! x '(a b c))
+(? '(1 a b c) 'x)
+(set-car! x '(d e f))
+(? '((d e f) a b c) 'x)
+
+
+
+
 ;; an expected test
+
 (define (fact n)  ;; test define syntactic sugar macro
   (if (= n 0)
-    1
-    (* n (fact (- n 1)))  )  )
+      1
+      (* n (fact (- n 1)))  )  )
 
+(? 1 '(fact 0))
+(? 1 '(fact 1))
+(? 120 '(fact 5))
+;;;;;;;;;; tests
            
 ;; a version of car, cdr and cons using lambda
+
 (define kar (lambda (z) (z (lambda (p q) p))))
 (define kdr (lambda (z) (z (lambda (p q) q))))
 (define kons (lambda (x y) (lambda (m) (m x y))))
 
 ;; another version that is easier to understand but needs if
+
 (define kons2 (lambda (a b) (lambda (m) (if (eq? m 1) a b))))
 (define kar2 (lambda (x) (x 1)))
 (define kdr2 (lambda (x) (x 2)))
 
+(define car2 (lambda (x) (car x)))
 
 
-;; test harness
+;; test harness - not finished
+
 (define test1 (lambda (pred)
   (if (eval1 pred)
       'pass
       (progn (display "FAIL: ") pred)  )  ))
 
 ; is atm a member of an improper list?
+
 (define (member-imp? atm lst)
   (cond ((null? lst) #f)
         ((eq? atm (car lst)) #t)
@@ -156,15 +248,7 @@
 (define pc-list2 (lambda args args) )  ; is it this simple?
 (define pc-list3 (lambda (first . rest) (cons first rest) ) )
 
-(define (newline) (display "\n"))
 
-(define set-car! set_car)
-(define set-cdr! set_cdr)
-
-(define x '(1 2 3))
-x
-(set-cdr! x '(a b c))
-(? '(1 a b c) 'x)
 
 
 ;(define x 2)

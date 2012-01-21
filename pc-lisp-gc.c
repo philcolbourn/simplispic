@@ -77,7 +77,7 @@ void _dec_ref( ATOM p );
 
 #define MARK3                                                          \
   MEM_DEBUG_LINE( "MARK3.1" );                                         \
-  FILE_LINE;                                                           \
+  /*FILE_LINE;/**/                                                     \
   /*ATOM _save = _mem( usedPairs );/**/                                \
   //MEM_PEEK( "",_save );                                              \
   MEM_DEBUG_LINE( "MARK3.2" );                                         

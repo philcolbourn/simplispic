@@ -41,13 +41,15 @@ cp a.out a.gcc.out
 
 cat <<END > test.pcl
 ; CAUTION: most test cases should go after load to ensure environment is booted
-(load "pc-scheme.lib")
-(cond ((eq? 1 1) "test" "1==1") (else "1!=0"))
-(if (eq? 1 0) "1==0" "1!=0")
-(car (cons '() '()))
-               
-;(append '(1 2 (3 4) 5) '(6 7))
 
+(load "pc-scheme.lib")
+
+;(cond ((eq? 1 1) "test" "1==1") (else "1!=0"))
+;(if (eq? 1 0) "1==0" "1!=0")
+;(car (cons '() '()))
+
+(load "pc-r4rstest.sim")
+               
 END
 
 if [ "$?" == "0" ]; then 
