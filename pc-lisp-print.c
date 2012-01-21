@@ -13,11 +13,9 @@
 
 #include <stdio.h>
 #include "pc-lisp-mem.c"
-//#include "pc-lisp-test.c"
-#include "pc-lisp-read2.c"
-//#include "pc-lisp-primitives.c"
-//#include "pc-lisp-adt.c"
-//#include "pc-lisp-eval-adt.c"
+#include "pc-lisp-gc.c"
+#include "pc-lisp-pair.c"
+//#include "pc-lisp-read2.c"
 #include "pc-lisp-main.c"
 
 enum   {DUMP=0, PRINT=1, DISPLAY=2};
@@ -189,17 +187,26 @@ LOOP:
   if ( is_pair(t) ){  // handle special list elements ((l) env . (E))
     if ( is_eq( t,gEnv ) ){  // don't print global env if cdr of pair 
       _print_flag( f,t );
-      fputs( "G",f ); 
+      fputc( 'G',f ); 
       return p; 
-    }  // global env
+    }
     if ( is_tenv(t) ){  // don't loop from a procedure's env pointer
       //fputc( '[',f );
-      if ( _pmk(t)==pmark ){  //been here recently
+      if ( is_eq( cdr(t),gEnv ) ){  // don't print global env if cdr of pair 
+        _print_flag( f,t );
+        //fputs( "env G",f );  
+        fputc( 'G',f );  
+      }
+      else if ( _pmk(t)==pmark ){  // been here recently
         _print_flag( f,t );
         fputc( '@',f ); 
+        //fputs( "env @",f ); 
       }
-      else
+      else{
+        //fputc( '{',f ); 
         fprintp( f,t,SP,"",fmt ); 
+        //fputc( '}',f ); 
+      }
       //fputc( ']',f ); 
       return p; 
     }

@@ -152,12 +152,20 @@
 ;      (eval-cond (cdr conds) bindings)  )  ))
 
 (define (list . args) args)  ; is it this simple?
+(? '(1 2 3) '(list 1 2 (+ 1 2)))
 (define pc-list2 (lambda args args) )  ; is it this simple?
 (define pc-list3 (lambda (first . rest) (cons first rest) ) )
 
 (define (newline) (display "\n"))
+
 (define set-car! set_car)
 (define set-cdr! set_cdr)
+
+(define x '(1 2 3))
+x
+(set-cdr! x '(a b c))
+(? '(1 a b c) 'x)
+
 
 ;(define x 2)
 ;(+ x 3)

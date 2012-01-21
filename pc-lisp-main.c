@@ -834,13 +834,14 @@ int main(){  // clang bug
   //_cm_check_mem_leak();
 
   fprintf( stderr,"Done.\n" );
-  fprintf( stderr,"Used Pairs=%d\n",_usedPairCount  );
+  fprintf( stderr,"Free+Used =%d\n",_freePairCount+_usedPairCount  );
+  fprintf( stderr,"      Free=%d\n",_freePairCount  );
+  fprintf( stderr,"      Used=%d\n",_usedPairCount  );
   fprintf( stderr,"  Max Used=%d\n",_usedPairMaxCount  );
-  fprintf( stderr,"Free Pairs=%d\n",_freePairCount  );
-  fprintf( stderr," Free+Used=%d\n",_freePairCount+_usedPairCount  );
-  fprintf( stderr,"  Recycled=%d\n",_recyclePairCount );
-  fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
+  fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
+  fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
   fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
+  fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
   fprintf( stderr,"Symbols   =%d\n",freeSym );
   fprintf( stderr,"Strings   =%d\n",freeStr );
   //fprintf( stderr,"  Recycled=%d\n",_recycleStrCount );

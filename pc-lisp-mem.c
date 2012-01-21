@@ -11,11 +11,7 @@
 
 // HEADER
 
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-
-#define SIZE     3485        // max size of cell storage
+#define SIZE     5000//3485        // max size of cell storage
 #define SYM_SIZE SIZE        // max symbol list size
 #define SYM_LEN  32          // max symbol length including NUL
 #define STR_LEN  65536       // max string for now including NUL

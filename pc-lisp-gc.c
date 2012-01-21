@@ -22,9 +22,6 @@ Memory - Pairs
 
 // HEADER
 
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
 #include "pc-lisp-mem.c"
 
 #define GC_ON                // GC ON
@@ -44,8 +41,6 @@ extern FLAGS  sar[SIZE];
 
 #include "pc-lisp-misc.c"
 
-extern int  _recyclePairCount;
-extern int  _reusedPairCount;
 extern int  _sweepPairCount;
 extern int  _recycleStrCount;
 
@@ -62,6 +57,11 @@ MAKE_PAIR_SET_AND_GET( ATOM,car );
 MAKE_PAIR_SET_AND_GET( ATOM,cdr );
 
 void _inc_ref( ATOM p );
+
+extern int  _recyclePairCount;
+void _recycle( ATOM p );
+
+extern int _decRecyclePairCount;
 void _dec_ref( ATOM p );
 
 //#define MEM_DEBUG
@@ -114,8 +114,7 @@ void _dec_ref( ATOM p );
   MEM_DEBUG_LINE( "VOID3.2" );                                         \
   return;                                                              \
 }
-//#define CAR(a)       car(a)
-//#define CDR(a)       cdr(a)
+
 #define _1ST(a)      car(a)     // [1,1]
 #define _2ND(a)      cadr(a)    // [2,1]
 #define _3RD(a)      caddr(a)   // [3,1]
@@ -171,15 +170,16 @@ void _dec_ref( ATOM p );
 //#define cddddr(a)    cdr( cdddr( a ) )  // rest after _4TH
 
 
-extern int  _freePairCount;
-ATOM _free_unlink();
-ATOM _free_append( ATOM p );
-extern int  _usedPairCount;
-extern int  _usedPairMaxCount;
-ATOM _used_unlink( ATOM p );
-ATOM _used_append( ATOM p );
+//extern int  _freePairCount;
+//ATOM _free_unlink();
+//ATOM _free_append( ATOM p );
+//extern int  _usedPairCount;
+//extern int  _usedPairMaxCount;
+//ATOM _used_unlink( ATOM p );
+//ATOM _used_append( ATOM p );
 
 extern ATOM (*cons)( ATOM a,ATOM b );
+extern int  _reusedPairCount;
 ATOM consNormal( ATOM a,ATOM b );
 
 
@@ -228,19 +228,26 @@ void _inc_ref( ATOM p ){
 
 // all unreferenced pairs MUST be recycled this way
 int _recyclePairCount = 0;
+
 void _recycle( ATOM p ){
+    //WARN( "Reference count is 0 - GC'd",p );
     _used_unlink( p );
     _free_append( p );
-    _set_car( p,REC );
-    _set_cdr( p,REC );
+    set_car( p,REC );  // these force recursive recycling
+    set_cdr( p,REC );
     _recyclePairCount++;
-    //WARN( "Reference count is 0 - GC'd",p );
 }
+int _decRecyclePairCount = 0;
 
 void _dec_ref( ATOM p ){
-  EXITIF( _ref(p)==0,"Reference count already 0",p );
-  _set_ref( p,_ref(p)-1 );
-  if ( _ref(p)==0 )  _recycle( p );
+  int c = _ref( p );
+  EXITIF( c==0,"Reference count already 0",p );
+  _set_ref( p,c-1 );
+  if ( c==1 ){
+    _decRecyclePairCount++;
+    //WARN( "Reference count is 0 - GC'd",p );
+    _recycle( p );
+  }
 }
 
 FLAGS  sar[SIZE];         // string garbage markage
@@ -264,6 +271,37 @@ ATOM consNormal( ATOM a,ATOM b ){
   //_cm_check_mem();  // may not be able to do this here since
   // nothing refs this new pair yet.
   return c;
+}
+int _sweepPairCount   = 0;
+
+void _ms_sweep_all_pairs( int m ){
+  //PEEK( "start",NIL );
+  ATOM i = _mem( usedPairs );
+  ATOM p = i;
+  while ( ! is_null( p ) ){
+    i = _mem( p );
+    if ( _ref(p)==0 ){
+      _sweepPairCount++;
+      _recycle( p );
+      i = _mem( usedPairs );
+    }
+    p = i;
+  }
+}
+
+void _ms( ATOM env ){
+#ifndef GC_ON
+  return;
+#endif
+  //PEEK( "start",NIL );
+  //WARNIF( is_null(freePairs),"freePairs should never be NIL!",freePairs );
+  //_ms_mark_all_used_pairs(24);
+  //_cm_clear_marks_on_atom( env,24 );  // clear marks in environment
+  //_cm_check_mem();
+  _ms_sweep_all_pairs( 24 );
+  _cm_check_mem();
+  //_cm_check_mem_leak();
+  //PEEK( "done",NIL );
 }
 
 /*
@@ -337,36 +375,6 @@ ATOM _ms_sweep_next( ATOM this,int m ){
 }
 */
 
-int _sweepPairCount   = 0;
-
-void _ms_sweep_all_pairs( int m ){
-  ATOM i = _mem(usedPairs);
-  ATOM p = i;
-  while ( ! is_null( p ) ){
-    i = _mem(p);
-    if ( _ref(p)==0 ){
-      _sweepPairCount++;
-      _recycle( p );
-      i = _mem(usedPairs);
-    }
-    p = i;
-  }
-}
-
-void _ms( ATOM env ){
-#ifndef GC_ON
-  return;
-#endif
-  //PEEK( "start",NIL );
-  //WARNIF( is_null(freePairs),"freePairs should never be NIL!",freePairs );
-  //_ms_mark_all_used_pairs(24);
-  //_cm_clear_marks_on_atom( env,24 );  // clear marks in environment
-  _cm_check_mem();
-  _ms_sweep_all_pairs( 24 );
-  _cm_check_mem();
-  //_cm_check_mem_leak();
-  //PEEK( "done",NIL );
-}
 
 #endif
 #endif
