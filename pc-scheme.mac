@@ -1,0 +1,318 @@
+"Loading a Toy Scheme Macros..."
+(define pc-scheme.mac #t)
+
+;(define warn (lambda (mess name atom) (cons mess (cons name atom)) ))
+
+; key-value pairs (key . value)
+
+(define make-kvp (lambda (key val) (cons key val)))
+(define kvp-key (lambda (kvp) (car kvp)))
+(define kvp-val (lambda (kvp) (cdr kvp)))
+
+; key-value lists (key value) - uses 1 extra pair
+
+(define make-kvl (lambda (key val) (list key val)))
+(define kvl-key (lambda (kvl) (car kvl)))
+(define kvl-val (lambda (kvl) (cadr kvl)))
+
+; associative list ((k . v) (k . v) ...)
+
+(define make-alist (lambda (keys vals)
+  (cond ((null? keys) (if (null? vals) '() (make-alist "Not enough keys for values" vals)))
+        ((atom? keys) (list (make-kvp keys vals)) )  ; key=(v v ...)
+        ((null? vals) (list (make-kvp (car keys) '())
+                            (make-alist (cdr keys) '())) )  ; missing values are ()
+        (else (list (make-kvp (car keys) (car vals))
+                    (make-alist (cdr keys) (cdr vals)))  )) 
+))
+
+(define extend-alist (lambda (kvp alst) (cons kvp alst)))
+
+(define alist-assoc (lambda (key alst)
+  ;(peek "alist-assoc key=") (print key) (newline)
+  ;(display "alst=") (print alst) (newline)
+  (cond ((null? alst) #f)
+        ((eq? key (kvp-key (car alst))) 
+         ;(peek "found key->" (car alst))
+         (car alst))
+        (else (alist-assoc key (cdr alst)))  )))
+
+(define alist-lookup (lambda (key alst)
+  (define kvp (alist-assoc key alst))
+  (if kvp (kvp-val kvp) "Key not found")  ))
+  
+(define assoc (lambda (sym env)
+  (cond ((null? env) #f)
+        (else
+          (define kvp (alist-assoc sym (car env))) 
+          (if kvp 
+              kvp 
+              (assoc sym (cdr env))  )))))
+
+; (and) -> #t
+; (and a) -> a
+; (and a1 a2) -> (if a1 a2 #f)
+; (and a1 a2 a3) -> (if a1 (if a2 a3 #f) #f)
+;($s $n)
+
+(define indent (lambda (n)
+  (if (= n 0) '() (progn (print "  ") (indent (- n 1))))  ))
+
+(define indent-level 0)
+
+; display args separated by a leading space 
+
+(define displayn (lambda args
+  (define displayn-worker (lambda (args)
+    (if (null? args) 
+        (display #\n) 
+        (progn 
+          (display " ")
+          (display (car args)) 
+          (displayn-worker (cdr args))  ))))
+  (displayn-worker args)  ))
+
+(displayn 1)
+(displayn 1 "2")
+(displayn 1 "" "2" "23" "234" "2345" 't 'th 'thr 'three)
+(displayn 1 2 'three 4)
+;(exit 1)
+
+(define peek (lambda (mess . args)
+  ;(indent indent-level) 
+  (display mess)
+  (displayn args)  ))
+
+; define or match a symbol
+
+; note: different to SICP
+
+; if symbol is defined in env,
+;   if symbol is undefinged then define it as exp
+;   else match its value
+; else match symbol
+
+(define define-or-match-symbol (lambda (sym exp env)
+  ;(peek "doms: sym=[" sym  " ]  exp=[" exp  " ]  env=[" env " ]")
+  (define kvp (alist-assoc sym env))         ; lookup in env
+  ;(peek "  kvp=[" kvp " ]")
+  (if kvp                                   ; symbol found in env
+      (progn
+        (define val (kvp-val kvp))
+        ;(peek "    variable found val=[" val " ]")
+        (if (eq? val '*UNDEF*)
+            (progn
+              ;(peek "      set variable to [" exp " ]")
+              (set-cdr! kvp exp)          ; bind symbol in env
+              env
+            )
+            (if (equal? val exp) env #f)  )
+            ;(if (match? val exp env) env #f)     ; FIXME: match?
+      )
+      ; symbol is not a variable so treat as constant
+      (if (eq? sym exp) 
+          env               ; symbol matches without looking up in env
+          #f  )  )  ))
+
+; this was similar to SICP - does not require an initialised environment
+
+; old 'implied variable method'
+;        ((symbol? tem)  ; if symbol does not match, lookup or define symbol
+;         ;(display "match symbol=") (print tem) (newline)
+;         (if (eq? tem exp) 
+;             env  ; symbol matches without looking up in env
+;             (progn
+;               (define kvl (alist-assoc tem env))
+;               ;(display "kvl=") (print kvl) (newline)
+;               (if kvl ; symbol found in env
+;                   (if (equal? (kvl-val kvl) exp) env #f)
+;                   (extend-alist (make-kvl tem exp) env)  ; bind symbol in env
+;                     ))))
+
+; does template match expression given environment
+; eg.
+;  (define (<name> . <formals>) <body>)
+;  (define (add1 x) (+ x 1))
+;  ((<name> . *UNDEF*) (<formals> . *UNDEF*) (<body> . *UNDEF*))
+; ->
+;  ((<name> . add1) (<formals> . (x)) (<body> . (+ x 1))
+;
+(define match (lambda (tem exp env)
+  ;(peek "match tem=[" tem " ]  exp=[" exp " ]  env=[" env " ]")
+  (cond 
+        ((eq? env #f) #f) 
+        ((null? tem) 
+         ;(peek "END OF TEMPLATE exp=" exp) 
+         (if (null? exp) env #f)  )
+        ((null? exp) 
+         ;(peek "END OF EXPRESSION tem=" tem)
+         #f  )                                ; end of expression
+        ((symbol? tem)    ; if symbol does not match, lookup or define symbol
+         ;(peek "symbol=" tem)
+         (define-or-match-symbol tem exp env)  )
+        ((atom? tem) 
+         ;(peek "atom=" tem)
+         (if (eq? tem exp) env #f)  )
+        ; pair
+        ((pair? tem) 
+         ;(peek "pair=" tem)
+         (if (pair? exp) 
+           (match (cdr tem) 
+                  (cdr exp) 
+                  (match (car tem) (car exp) env)  )
+           #f  ))
+        (else (peek "unknown list element") #f)  )
+))
+
+match
+
+;(define trace (lambda (proc)
+;  (define old-proc proc)
+  
+
+(define make-exp (lambda (tem env)
+  ;(display "env=") (print env) (newline)
+  (cond 
+        ((null? tem) '())
+        
+        ((symbol? tem) 
+         ;(display "symbol=") (print tem) (newline)
+         (define kvp (alist-assoc tem env))
+         ;(display "kvp=") (print kvp) (newline)
+         (if kvp                        ; symbol found in env
+             (eval-macro (kvp-val kvp))
+             tem)  )
+             
+        ((atom? tem) 
+         ;(display "atom=") (print tem) (newline)
+         tem  )
+        
+        ((pair? tem) 
+         ;(display "pair=") (print tem) (newline)
+         ; do i need eval-macro here as well?
+         (cons 
+           (eval-macro (make-exp (car tem) env)) 
+           (eval-macro (make-exp (cdr tem) env))  ))
+
+        (else (display "unknown\n") #f)  )
+))
+
+(match '() '() '((result . match)))
+(match '(1) '() '((result . FAIL)))
+(match '() '(1) '((result . FAIL)))
+(match '(1) '(1) '((result . match)))
+(match '(1) '(2) '((result . FAIL)))
+(match '(1 2 "3" (4 #\5 () 7) (8)) '(1 2 "3" (4 #\5 () 7) (8)) '((result . match)))
+(match '(x) '(2) '((x . *UNDEF*) (result . match)))
+(match '(1 x) '(1 ("this is x")) '((x . *UNDEF*) (result . match)))
+(match '(1 x (x 2)) '(1 ("x") (("x") 2)) '((x . *UNDEF*)(result . match)))
+(match '(1 x (x 2)) '(1 ("x") (("y") 2)) '((x . *UNDEF*)(result . FAIL)))
+
+(match '(define (_name . _args) _body) 
+       '(define (inc x) (+ x 1)) 
+       '((_name . *UNDEF*) (_args . *UNDEF*) (_body . *UNDEF*))  )
+
+(match '<nil> '() '((<nil> . nil) (result . match)))
+
+(define transformers '(
+  (nil () ())
+  ((define (<n> . <a>) . <b>) (define <n> (lambda . <a>) . <b>) (<n> <a> <b>)) 
+  ((begin . <b>) (progn . <b>) (<b>)) 
+  ((inc <a>) (+ <a> 1) (<a>)) 
+  ((dec <a>) (1 <a> 1) (<a>)) 
+  ((not <e>) (if <e> #f #t) (<e>))
+  ((and) #t ())  
+  ((and <e>) <e> (<e>)) 
+  ((and <e1> . <e2>) (if <e1> (and . <e2>) #f) (<e1> <e2>)) 
+  ((or) #f ())  
+  ((or <e>) <e> (<e>)) 
+  ((or <e1> . <e2>) (if <e1> #t (or . <e2>)) (<e1> <e2>)) 
+  ((let  ((<f> <e>)) . <b>) ((lambda (<f>) . <b>) <e>) (<f> <e> <b>))
+  ((let* ((<f> <e>)) . <b>) ((lambda (<f>) . <b>) <e>) (<f> <e> <b>))
+  ((let* ((<f> <e>) . <r>) . <b>) ((lambda (<f>) (let* <r> . <b>)) <e>) (<f> <e> <b> <r>))
+  ((cons-stream <a> <b>) (cons <a> (delay <b>)) (<a> <b>))
+
+))
+
+(define make-trans-env (lambda (env)
+  (if (null? env) 
+      '() 
+      (cons 
+        (make-kvp (car env) '*UNDEF*) 
+        (make-trans-env (cdr env))  ))  ))
+
+;; rescan expression for macro expansion
+
+;(define eval-macro-scan (lambda (exp)
+;  ;(display "ems exp=") (print exp) (newline)
+;  (cond 
+;        ((null? exp) '())
+;        (else (eval-macro-worker (car exp) transformers))  )))
+
+(define eval-macro-worker (lambda (exp trans)
+  ;(peek "emw exp=" exp)
+  (cond ((null? trans) exp)
+        (else
+          ;(display "emw trans=") (print trans) (newline)
+          ;(display "emw tem=") (print (caar trans)) (newline)
+          (define env (match (caar trans) exp (make-trans-env (caddar trans))))
+          ;(display "emw env=") (print env) (newline)
+          (if env 
+              (progn
+                ;(display "Transform ") (print exp) (display " -> ")
+                (define nexp (make-exp (cadar trans) env))
+                ;(print nexp) (newline)
+                ;(eval-macro-worker nexp transformers) ) 
+                nexp ) 
+              (progn
+                ;(display "Try next transformer ") (print (cdr trans)) (newline)
+                (eval-macro-worker exp (cdr trans))  ; try next transform
+              )   )  ))))
+;;;; FIXME needs to be recursive
+
+(define eval-macro (lambda (exp) (eval-macro-worker exp transformers)))
+
+(define ?count 0)  ;; count errors
+
+(define ? (lambda (expect exp)
+  ;(exit 3)
+  ;(display exp)
+  ;(display expect)
+  (displayn "test exp=" exp "->" expect)
+  (define result (eval1 exp))  ;; FIXME: this is bad
+  ;(let ((result (eval1 exp)))
+    (if (equal? result expect)
+      (progn
+        (display "  pass")
+        #t  )
+      (progn
+        (set! ?count (+ ?count 1))
+        (displayn "FAIL! Got" result)
+        (if (= ?count 5) (exit) #f )  )  )
+  ;)   
+))
+
+(? 5 '(+ 2 3))
+(- 2 3)
+;(list nil 1 2 nil 3)
+(exit 1)
+;(inc 3)
+;(begin 1 (inc 2) (+ 2 3))
+;(and)
+;(and 2)
+;(and (= 1 2) (= 3 4) (= 5 6))
+;(or)
+;(or 2)
+;(or (= 1 2) (= 3 4) (= 5 6))
+;(let ((x 3)) (+ x 3))
+(let* ((x 3)) (+ x 3))
+(let* ((x 3) (y 4)) (+ x y))
+
+(exit 1)
+
+; keep last
+
+(display "Macros loaded.") (newline)
+
+(exit 1)
+
