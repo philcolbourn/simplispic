@@ -289,12 +289,6 @@ int equal( ATOM a,ATOM b ){            // are these atoms equivalent?
 EQUAL:
   if ( is_eq( a,b ) ) return TRUE;   // identical atoms are equal
   if NE_TAG( a,b )    return FALSE;  // different types are not equal
-  //if ( is_str(a) ){
-  //  EXIT( "FIXME: Using strcmp",a );
-  //  // FIXME: but strings share storage if identical
-  //  if ( strcmp( strings[ get_str(a) ].text,strings[ get_str(b) ].text )==0 ) return TRUE;
-  //  return FALSE;
-  //}
   if ( is_pair(a) ){
     if ( equal( car(a),car(b) ) ){ 
       a = cdr(a);  

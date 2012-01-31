@@ -108,101 +108,79 @@ void _print_flag( FILE *f,ATOM p ){
   if ( _gcm(p)==2 ) fputc( '!',f );
 }
 
+ATOM fprintSTR( FILE *f,ATOM a,int fmt ){
+  int s = get_str(a);
+  //fprintf( f,"[$=%s L=%d\n",strings[s].text,strings[s].len );
+  if ( s<=0 ){  // "" is 0
+    s = -s;
+    int i = s >> (3*8);
+    fprintf( f,printFormat[ STR ][ fmt ],i,&s );
+  }
+  else{
+    fprintf( f,printFormat[ STR ][ fmt ],strings[ s ].len,strings[ s ].text ); 
+  }
+  return a;
+}
+
+ATOM fprintCON( FILE *f,ATOM a,int fmt ){
+  if ( is_eq( a,TRU ) ){ fprintf( f,"#t"         ); return a; }
+  if ( is_eq( a,FAL ) ){ fprintf( f,"#f"         ); return a; }
+  if ( is_eq( a,END ) ){ fprintf( f,"?END?"      ); return a; }
+  if ( is_eq( a,MTY ) ){ fprintf( f,"?UNDEF?"    ); return a; }
+  if ( is_eq( a,REC ) ){ fprintf( f,"!RECYCLED!" ); return a; }
+  fprintf( f,printFormat[ CON ][ fmt ],get_con(a) );
+  return a;
+}
+
+ATOM fprintCHR( FILE *f,ATOM a,int fmt ){
+  //if ( is_eq( a,EOP ) ){ fprintf( f,"?.?"        ); return a; }
+  //if ( is_eq( a,EOL ) ){ fprintf( f,"?)?"        ); return a; }
+  fprintf( f,printFormat[ CHR ][ fmt ],get_chr(a) );
+  return a;
+}
+
+ATOM fprintPAR( FILE *f,ATOM a,char *lsep,int fmt ){
+  if ( is_eq( a,NIL ) ){ fprintf( f,"()"         ); return a; }
+  EXITIF( get_par(a)<=0,"Negative list index",a );
+  if ( is_lambda(a) ){  // (lambda (x) (car x) env G)
+    fputs( "<",f ); 
+    fprintp( f,a,SP,"",fmt );
+    fputc( '>',f ); 
+    return a;
+  }
+  if ( is_primitive(a) ){ // (primitive (x) 1 env G)
+    fputs( "{",f ); 
+    fprintp( f,a,SP,"",fmt ); 
+    fputc( '}',f ); 
+    return a;
+  }
+  if ( match_taglist( a,kw_quote) ){  // FIXME: hack
+    fputc( '\'',f );
+    fprinta1( f,cadr(a),"",fmt );
+    return a;
+  }
+  fputs( lsep,f );  // separator between atoms and lists
+  fputs( "(",f ); 
+  char buf[110]=""; // was "\0";
+  if ( lsep[0]>0 )  // if more than NUL, indent
+    snprintf( buf,99,"%s  %c",lsep,(char)0 );
+  fprintp( f,a,SP,buf,fmt );    fputs( ")",f ); 
+  return a; 
+}
+
 ATOM fprinta1( FILE *f,ATOM a,char *lsep,int fmt ){
-  int s;
   switch ( get_tag(a) ){
-
-  case CON:
-    if ( is_eq( a,TRU ) ){ fprintf( f,"#t"         ); return a; }
-    if ( is_eq( a,FAL ) ){ fprintf( f,"#f"         ); return a; }
-    if ( is_eq( a,END ) ){ fprintf( f,"?END?"      ); return a; }
-    if ( is_eq( a,MTY ) ){ fprintf( f,"?UNDEF?"    ); return a; }
-    if ( is_eq( a,REC ) ){ fprintf( f,"!RECYCLED!" ); return a; }
-    fprintf( f,printFormat[ get_tag(a) ][fmt],get_val(a) );
-    return a;
-    
-  case CHR:
-    //if ( is_eq( a,EOP ) ){ fprintf( f,"?.?"        ); return a; }
-    //if ( is_eq( a,EOL ) ){ fprintf( f,"?)?"        ); return a; }
-    fprintf( f,printFormat[ get_tag(a) ][fmt],get_val(a) );
-    return a;
-    
-  case PAR: 
-    if ( is_eq( a,NIL ) ){ fprintf( f,"()"         ); return a; }
-    EXITIF( get_val(a)<=0,"Negative list index",a );
-    if ( is_lambda(a) ){  // (lambda (x) (car x) env G)
-      fputs( "<",f ); 
-      fprintp( f,a,SP,"",fmt );
-      fputc( '>',f ); 
-      return a;
-    }
-    if ( is_primitive(a) ){ // (primitive (x) 1 env G)
-      fputs( "{",f ); 
-      fprintp( f,a,SP,"",fmt ); 
-      fputc( '}',f ); 
-      return a;
-    }
-    if ( match_taglist( a,kw_quote) ){  // FIXME: hack
-      fputc( '\'',f );
-      fprinta1( f,cadr(a),"",fmt );
-      return a;
-    }
-    fputs( lsep,f );  // separator between atoms and lists
-    fputs( "(",f ); 
-    char buf[110]=""; // was "\0";
-    if ( lsep[0]>0 )  // if more than NUL, indent
-      snprintf( buf,99,"%s  %c",lsep,(char)0 );
-    fprintp( f,a,SP,buf,fmt ); 
-    fputs( ")",f ); 
-    return a; 
-
+  case CON:  return fprintCON( f,a,fmt );
+  case CHR:  return fprintCHR( f,a,fmt );
 //  case STR: fprintf( f,"\"%s\"[%d]",strings[ get_str(a) ],sar[ get_str(a) ].gc  ); return;
-
-  case STR:  case SYM:
-    s = get_val(a);
-    //fprintf( f,"[$=%s L=%d\n",strings[s].text,strings[s].len );
-    //exit(1);
-    if ( s<=0 ){  // "" is 0
-      s = -s;
-      //fprintf( f,"[\n" );
-      int i = s >> (3*8);
-      fprintf( f,printFormat[ get_tag(a) ][fmt],i,&s );
-      //fprintf( f,"]" );
-    }
-    else{
-      //fprintf( f,"$\n%s\n%d\n",strings[ get_str(a) ].text,strings[ get_str(a) ].len );
-      //fprintf( f,"$$%.*s\n",strings[ get_str(a) ].len,strings[ get_str(a) ].text );
-      //EXITIF( get_val(a)<=0,"Negative string index",a );
-      fprintf( f,printFormat[ get_tag(a) ][fmt],strings[ get_str(a) ].len,
-                                                strings[ get_str(a) ].text ); 
-    }
-    //fprintf( f,"]\n" );
-    return a;
+  case STR:  return fprintSTR( f,a,fmt );
+  case SYM:  return fprintSTR( f,a,fmt );
     //{ fputc('"',f); fprintp( f,a,0  ); fputc('"',f); return; }
     // old SYM fprintp( f,a,0 ); return;  // SYM
-
-/*
-  case SYM:
-    s = get_sym(a);
-    if ( s<0 ){
-      s = -s;
-      //fprintf( f,"[" );
-      int i = s >> (3*8);
-      int j,c;
-      for ( j=0;j<i;j++ ){
-        c = s & 255;    
-        fprintf( f,printFormat[ CHR ][fmt],c );
-        s = s >> 8;
-      }
-      //fprintf( f,"]" );
-      // was fprintf( f,printFormat[ CHR ][fmt],-get_sym(a) );
-    } 
-    else
-      fprintf( f,printFormat[ get_tag(a) ][fmt],symbols[ get_sym(a) ].name ); 
-    return a;
-*/
+    
+  case PAR:  return fprintPAR( f,a,lsep,fmt );
   default:  
-    fprintf( f,printFormat[ get_tag(a) ][fmt],get_val(a) );
+    fprintf( f,printFormat[ get_tag(a) ][ fmt ],get_val(a) );
   }
   return a;
 }
