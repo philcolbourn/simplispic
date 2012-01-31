@@ -19,8 +19,8 @@
 #include "pc-lisp-main.c"
 
 enum   {DUMP=0, PRINT=1, DISPLAY=2};
-typedef char  *STRING;
-extern STRING  printFormat[][3];  // how we format ATOMs when printing
+typedef char  *CSTRING;
+extern CSTRING  printFormat[][3];  // how we format ATOMs when printing
 extern int pmark;
 
 ATOM    fprinta ( FILE *f,ATOM a );
@@ -45,17 +45,17 @@ ATOM    disperr ( ATOM a );
 int pmark = 0;  // to stop looping while printing hack
 
 //{dump,print,display}
-STRING printFormat[][3]={ 
-  [PAR] = { "%d@  "   , "%d@"   , "%d@" },
-  [NUM] = { "%d  "    , "%d"    , "%d"  },
-  [RE3] = { "%d  "    , "%d"    , "%d"  },
-  [RE5] = { "%d  "    , "%d"    , "%d"  },
-  [RE7] = { "%d  "    , "%d"    , "%d"  },
-  [SYM] = { "%s$  "   , "%s"    , "%s"  },
-  [CHR] = { "%c  "    , "%c"    , "%c"  },
-  [CON] = { "%d  "    , "%d"    , "%d"  },
-  [STR] = { "\"%s\"  ", "\"%s\"", "%s"  },
-  [PFN] = { "%x  "    , "%x"    , "%x"  }    // FIXME: remove?
+CSTRING printFormat[][3]={ 
+  [PAR] = { "%d@  "     , "%d@"     , "%d@"   },
+  [NUM] = { "%d  "      , "%d"      , "%d"    },
+  [RE3] = { "%d  "      , "%d"      , "%d"    },
+  [RE5] = { "%d  "      , "%d"      , "%d"    },
+  [RE7] = { "%d  "      , "%d"      , "%d"    },
+  [SYM] = { "%.*s$  "   , "%.*s"    , "%.*s"  },
+  [CHR] = { "%c  "      , "%c"      , "%c"    },
+  [CON] = { "%d  "      , "%d"      , "%d"    },
+  [STR] = { "\"%.*s\"  ", "\"%.*s\"", "%.*s"  },
+  [PFN] = { "%x  "      , "%x"      , "%x"    }    // FIXME: remove?
 };
 
 // how to do stdin stdout stderr?
@@ -83,12 +83,14 @@ ATOM printa( ATOM a ){
 
 ATOM printerr( ATOM a ){ 
   pmark = (pmark+1)%256;
+  //PEEK( "",a );
   fprinta1( stderr,a,"",PRINT ); 
   return a;
 }
 
 ATOM disperr( ATOM a ){ 
   pmark = (pmark+1)%256;
+  //PEEK( "",a );
   fprinta1( stderr,a,"",DISPLAY ); 
   return a;
 }
@@ -107,10 +109,12 @@ void _print_flag( FILE *f,ATOM p ){
 }
 
 ATOM fprinta1( FILE *f,ATOM a,char *lsep,int fmt ){
+  int s;
   switch ( get_tag(a) ){
 
   case CON:
     if ( is_eq( a,TRU ) ){ fprintf( f,"#t"         ); return a; }
+    if ( is_eq( a,FAL ) ){ fprintf( f,"#f"         ); return a; }
     if ( is_eq( a,END ) ){ fprintf( f,"?END?"      ); return a; }
     if ( is_eq( a,MTY ) ){ fprintf( f,"?UNDEF?"    ); return a; }
     if ( is_eq( a,REC ) ){ fprintf( f,"!RECYCLED!" ); return a; }
@@ -154,20 +158,49 @@ ATOM fprinta1( FILE *f,ATOM a,char *lsep,int fmt ){
 
 //  case STR: fprintf( f,"\"%s\"[%d]",strings[ get_str(a) ],sar[ get_str(a) ].gc  ); return;
 
-  case STR:
-    EXITIF( get_val(a)<=0,"Negative string index",a );
-    fprintf( f,printFormat[ get_tag(a) ][fmt],strings[ get_str(a) ] ); 
+  case STR:  case SYM:
+    s = get_val(a);
+    //fprintf( f,"[$=%s L=%d\n",strings[s].text,strings[s].len );
+    //exit(1);
+    if ( s<=0 ){  // "" is 0
+      s = -s;
+      //fprintf( f,"[\n" );
+      int i = s >> (3*8);
+      fprintf( f,printFormat[ get_tag(a) ][fmt],i,&s );
+      //fprintf( f,"]" );
+    }
+    else{
+      //fprintf( f,"$\n%s\n%d\n",strings[ get_str(a) ].text,strings[ get_str(a) ].len );
+      //fprintf( f,"$$%.*s\n",strings[ get_str(a) ].len,strings[ get_str(a) ].text );
+      //EXITIF( get_val(a)<=0,"Negative string index",a );
+      fprintf( f,printFormat[ get_tag(a) ][fmt],strings[ get_str(a) ].len,
+                                                strings[ get_str(a) ].text ); 
+    }
+    //fprintf( f,"]\n" );
     return a;
     //{ fputc('"',f); fprintp( f,a,0  ); fputc('"',f); return; }
     // old SYM fprintp( f,a,0 ); return;  // SYM
 
+/*
   case SYM:
-    if ( get_val(a)<0 )    
-      fprintf( f,printFormat[ CHR ][fmt],-get_sym(a),f ); 
+    s = get_sym(a);
+    if ( s<0 ){
+      s = -s;
+      //fprintf( f,"[" );
+      int i = s >> (3*8);
+      int j,c;
+      for ( j=0;j<i;j++ ){
+        c = s & 255;    
+        fprintf( f,printFormat[ CHR ][fmt],c );
+        s = s >> 8;
+      }
+      //fprintf( f,"]" );
+      // was fprintf( f,printFormat[ CHR ][fmt],-get_sym(a) );
+    } 
     else
-      fprintf( f,printFormat[ get_tag(a) ][fmt],symbols[ get_sym(a) ].name,f ); 
+      fprintf( f,printFormat[ get_tag(a) ][fmt],symbols[ get_sym(a) ].name ); 
     return a;
-
+*/
   default:  
     fprintf( f,printFormat[ get_tag(a) ][fmt],get_val(a) );
   }
@@ -187,20 +220,20 @@ LOOP:
   if ( is_pair(t) ){  // handle special list elements ((l) env . (E))
     if ( is_eq( t,gEnv ) ){  // don't print global env if cdr of pair 
       _print_flag( f,t );
-      fputc( 'G',f ); 
+      fputc( 'g',f ); 
       return p; 
     }
     if ( is_tenv(t) ){  // don't loop from a procedure's env pointer
       //fputc( '[',f );
       if ( is_eq( cdr(t),gEnv ) ){  // don't print global env if cdr of pair 
         _print_flag( f,t );
-        //fputs( "env G",f );  
-        fputc( 'G',f );  
+        fputs( "env G",f );  
+        //fputc( 'G',f );  
       }
       else if ( _pmk(t)==pmark ){  // been here recently
         _print_flag( f,t );
-        fputc( '@',f ); 
-        //fputs( "env @",f ); 
+        //fputc( '@',f ); 
+        fputs( "env @",f ); 
       }
       else{
         //fputc( '{',f ); 

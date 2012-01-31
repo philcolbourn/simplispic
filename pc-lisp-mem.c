@@ -11,9 +11,10 @@
 
 // HEADER
 
-#define SIZE     5000//3485        // max size of cell storage
-#define SYM_SIZE SIZE        // max symbol list size
+#define SIZE     800000       // max size of cell storage
+#define SYM_SIZE 10000       // max symbol list size
 #define SYM_LEN  32          // max symbol length including NUL
+#define STR_SIZE 10000       // max symbol list size
 #define STR_LEN  65536       // max string for now including NUL
 
 
@@ -49,16 +50,27 @@ extern ATOM   freePairs;
 extern ATOM   usedPairs;
 extern ATOM   lastUsedPair;
 
+/*
 // Symbols
 typedef struct{
   char name[SYM_LEN];
+  int len;
 } SYMBOL;
 extern SYMBOL symbols[SYM_SIZE];
 extern int    freeSym;
+void symbol_init();
+*/
 
 // Strings
-extern char  *strings[SIZE];
-extern int    freeStr;
+typedef struct{
+  char *text;
+  int len;
+  int hash;
+} STRING;
+extern STRING strings[STR_SIZE];
+extern int     freeStr;
+void string_init();
+
 
 enum TAGS {PAR=0, MEM=0, BAK=0, NUM=1, SYM=2, RE3=3, CHR=4, RE5=5, STR=6, RE7=7, CON=12, PFN=29};
 
@@ -73,6 +85,7 @@ enum TAGS {PAR=0, MEM=0, BAK=0, NUM=1, SYM=2, RE3=3, CHR=4, RE5=5, STR=6, RE7=7,
            -1--> NUM (1)      
 */   
 
+//#include "pc-lisp-read2.c"
 #include "pc-lisp-misc.c"
 #include "pc-lisp-test.c"
 
@@ -101,7 +114,8 @@ MAKE_ATOM_ADT( bak,BAK );
 //#define ERR          MAKE_CON( -99)     // error value
 
 #define NIL          MAKE_PAR( 0 )     // NIL is an empty list - int=0
-#define FAL          NIL
+//#define FAL          NIL
+#define FAL          MAKE_CON( 0 )     // !=0
 #define TRU          MAKE_CON( 1 )     // !=0
 
 // ADTs
@@ -200,14 +214,38 @@ ATOM   lastUsedPair;
 
 // type storage
 
-SYMBOL symbols[SYM_SIZE];
-char  *strings[SIZE];
+//SYMBOL symbols[SYM_SIZE];
+STRING strings[STR_SIZE];
 
 // free storage indexes - by convention reserve [0]
 
-int    freeSym = 1;
+//int    freeSym = 1;
 int    freeStr = 1;
 int    freeFun = 1;
+
+/*
+void symbol_init(){
+  int i;
+  for ( i=0;i<SYM_SIZE;i++ ){
+    symbols[i].name[0] = 0;
+    //symbols[i].len = 0;
+    _strcpy( symbols[i].name,"UNDEF SYM",10 );
+    symbols[i].len = 9;
+  }
+}
+*/
+
+void string_init(){
+  int i;
+  for ( i=0;i<STR_SIZE;i++ ){
+    strings[i].text = "UNDEF STR";
+    strings[i].len  = 9;
+    sar[i].val      = 0;
+  }
+  strings[ 0 ].text = malloc( STR_LEN );
+  EXITIF( strings[ 0 ].text==NULL,"malloc returned NULL!",NIL );
+  strings[ freeStr ].len = 0;
+}
 
 /*
 Fundemental memory management functions

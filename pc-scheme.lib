@@ -1,9 +1,18 @@
 "Loading a Toy Scheme Library..."
+(define pc-scheme.lib #t)
+
 ;; some necessary symbols
 ;(define '. '.)  ; what is this for?
 
 ;; alias primitives with nicer names
-(define + iadd)
+;(define + iadd)
+(define + (lambda args
+  (define +worker (lambda (args)
+    (if (null? args) 
+        0 
+        (iadd (car args) 
+              (+worker (cdr args))  ))))
+  (+worker args)  ))
 (define - isub)
 (define * imul)
 (define / idiv)
@@ -15,6 +24,7 @@
 (define atom? atomp)
 (define pair? pairp)
 (define null? nullp)
+(define char? charp)
 (define < ilt)
 (define > igt)
 (define <= ilte)
@@ -23,38 +33,94 @@
 (define print printa)
 (define procedure? procp)
 (define exit exita)
+(define number? numberp)
+(define symbol? symbolp)
+(define string? stringp)
+(define set-car! set_car)
+(define set-cdr! set_cdr)
+
+(define caar (lambda (a) (car (car a))) )
+(define cadr (lambda (a) (car (cdr a))) )
+(define cdar (lambda (a) (cdr (car a))) )
+(define cddr (lambda (a) (cdr (cdr a))) )
+
+(define caaar (lambda (a) (car (car (car a)))) )
+(define caadr (lambda (a) (car (car (cdr a)))) )
+(define cadar (lambda (a) (car (cdr (car a)))) )
+(define caddr (lambda (a) (car (cdr (cdr a)))) )
+
+(define cdaar (lambda (a) (cdr (car (car a)))) )
+(define cdadr (lambda (a) (cdr (car (cdr a)))) )
+(define cddar (lambda (a) (cdr (cdr (car a)))) )
+(define cdddr (lambda (a) (cdr (cdr (cdr a)))) )
+
+(define caaaar (lambda (a) (car (car (car (car a))))) )
+(define caaadr (lambda (a) (car (car (car (cdr a))))) )
+(define caadar (lambda (a) (car (car (cdr (car a))))) )
+(define caaddr (lambda (a) (car (car (cdr (cdr a))))) )
+
+(define cadaar (lambda (a) (car (cdr (car (car a))))) )
+(define cadadr (lambda (a) (car (cdr (car (cdr a))))) )
+(define caddar (lambda (a) (car (cdr (cdr (car a))))) )
+(define cadddr (lambda (a) (car (cdr (cdr (cdr a))))) )
+
+
+(define cdaaar (lambda (a) (cdr (car (car (car a))))) )
+(define cdaadr (lambda (a) (cdr (car (car (cdr a))))) )
+(define cdadar (lambda (a) (cdr (car (cdr (car a))))) )
+(define cdaddr (lambda (a) (cdr (car (cdr (cdr a))))) )
+
+(define cddaar (lambda (a) (cdr (cdr (car (car a))))) )
+(define cddadr (lambda (a) (cdr (cdr (car (cdr a))))) )
+(define cdddar (lambda (a) (cdr (cdr (cdr (car a))))) )
+(define cddddr (lambda (a) (cdr (cdr (cdr (cdr a))))) )
+
+; more primitives
+(define newline (lambda () (display "\n")))
+
+
+(define else #t)  ;; should be a keyword in cond
+(define not (lambda (b) (if b #f #t)) ) 
+(define zero? (lambda (x) (eq? x 0)) )
+(define boolean? (lambda (x) (or (eq? x #t) (eq? x #f)) ))
+(define list (lambda args) args)  ; is it this simple?
+(define match-taglist (lambda (lst tag)
+  (if (not (pair? lst) ) 
+      #f
+      (eq? (car lst) tag)  )))
+
+(define make-lambda (lambda (form body)
+  (cons 'lambda (cons form body))  ))
+
+; load macros
+
+(load "pc-scheme.mac")
+
+; FIXME: this need to go after all RxRS is defined
+
+;(define null-environment (cdddr (lambda () 12)))  ; (closure <proc> env G)
+;null-environment
+
+;; old t and f
+;(define #t @1)  ;; define a symbol '#t' to be a special constant 
+;(define #f @0)  ;; define a symbol '#f' to be a special constant 
+;(define #f '())  ;; Lisp, not scheme
+;(define #t '#t)
 
 ;; this seems a simple way to represent truth
-(define #t @1)  ;; define a symbol '#t' to be a special constant 
-(define #f '())  ;; Lisp, not scheme
-(define else #t)  ;; should be a keyword in cond
-;(define #t '#t)
-(define (not b) (if b () #t)) 
-
+;(define #t (eq? 1 1))
+;(define #f (eq? 1 0))
+;(exit 1)
 ;; simplispic version of equal?
 (define _equal? (lambda (a b)
   (if (eq? a b) 
-    #t
-    (if (and (pair? a) (pair? b) ) 
-      (if (_equal? (car a) (car b)) 
-          (_equal? (cdr a) (cdr b)) 
-          ()  )
-      ()  )  )  ))
+      #t
+      (if (and (pair? a) (pair? b) ) 
+          (if (_equal? (car a) (car b)) 
+              (_equal? (cdr a) (cdr b)) 
+              #f  )
+          #f  )  )  ))
 
-(define (caar a) (car (car a)))
-(define (cadr a) (car (cdr a)))
-(define (cdar a) (cdr (car a)))
-(define (cddr a) (cdr (cdr a)))
-
-(define (caaar a) (car (car (car a))))
-(define (caadr a) (car (car (cdr a))))
-(define (cadar a) (car (cdr (car a))))
-(define (caddr a) (car (cdr (cdr a))))
-
-(define (cdaar a) (cdr (car (car a))))
-(define (cdadr a) (cdr (car (cdr a))))
-(define (cddar a) (cdr (cdr (car a))))
-(define (cdddr a) (cdr (cdr (cdr a))))
 
 ;;;;;;;;; test harness
 
@@ -64,6 +130,7 @@
 (define ?count 0)  ;; count errors
 
 (define (? expect exp)
+  (disperr "exp=")
   (printerr exp)
   (printerr '\ ->\ )
   (printerr expect)
@@ -72,20 +139,24 @@
   (let ((result (eval1 exp)))
     (if (equal? result expect)
       (begin
-        (printerr 'pass)
-        (printerr '\n)
+        (printerr 'pass\n)
         #t  )
       (begin
         (set! ?count (+ ?count 1))
         (printerr 'FAIL\ got\ )
-        ;(printerr '\ )
-        ;(printerr 'got)
-        ;(printerr '\ )
         (printerr result)
         (printerr '\n)
-        (if (= ?count 5) (exit) '() )  )  )
+        (if (= ?count 5) (exit) #f )  )  )
   )   
 )
+(? '#t '(eq? 1 1))
+;boolean?
+(? '#t '(boolean? #t))
+;(exit 1)
+(? #t '(boolean? #f))
+(? #f '(boolean? '()))
+(? #f '(boolean? 0))
+(? #f '(boolean? 1))
 
 (define (?a expect exp args)
   (printerr (cons exp args))
@@ -132,7 +203,12 @@
   (?atoms exp)
   (?lists exp)  )
 
-(?all (lambda (a) (car (cons a 0))) )
+;(?all (lambda (a) (car (cons a 0))) )
+
+
+;(? #t '())
+;(exit 1)
+
 
 ;; identity procedure
 
@@ -169,10 +245,6 @@ d
     
 (define ss show-stream)
 
-(define (newline) (display "\n"))
-
-(define set-car! set_car)
-(define set-cdr! set_cdr)
 
 (define x '(1 2 3))
 ;x
@@ -182,7 +254,43 @@ d
 (? '((d e f) a b c) 'x)
 
 
+(? #t '(zero? 0))
+(? #f '(zero? 1))
+(? #f '(zero? '()))
 
+(define list-tail
+  (lambda (x k)
+    (if (zero? k)
+        x
+        (list-tail (cdr x) (- k 1)))))
+
+(define (list-ref a n)
+  (if (= n 0)
+      (car a)
+      (list-ref (cdr a) (- n 1))  )  )
+
+(? 1 '(list-ref '(1 2 3) 0))
+(? 2 '(list-ref '(1 2 3) 1))
+(? 3 '(list-ref '(1 2 3) 2))
+
+(define make-promise
+  (lambda (proc)
+    (let ((result-ready? #f)
+          (result #f))
+      (lambda ()
+        (if result-ready?
+            result
+            (let ((x (proc)))
+              (if result-ready?
+                  result
+                  (begin (set! result-ready? #t)
+                         (set! result x)
+                         result  )  )))))))
+
+(define x (make-promise (lambda () (+ 2 3))))
+x
+(force x)
+;(exit 1)
 
 ;; an expected test
 
@@ -243,7 +351,6 @@ d
 ;      (eval (car (cdr (car conds))) bindings))
 ;      (eval-cond (cdr conds) bindings)  )  ))
 
-(define (list . args) args)  ; is it this simple?
 (? '(1 2 3) '(list 1 2 (+ 1 2)))
 (define pc-list2 (lambda args args) )  ; is it this simple?
 (define pc-list3 (lambda (first . rest) (cons first rest) ) )
@@ -324,7 +431,85 @@ d
 
 ;(define ? 1) ; what does redefining this do?
 
+(define (for-each f lst)
+	(if (not (null? lst))
+    (begin
+	    (f (car lst))
+	    (for-each f (cdr lst))  )
+	  '()  ))
+
+(define (map-list f l)
+  (if (null? l)
+    '()
+     (cons (f (car l)) (map-list f (cdr l)) ) ))
+
+; FIXME: not really map
+
+(define map map-list)
+
+;(for-each (lambda (x) (display x) (display " ")) '(basic for-each test))
+
+;(reverse '(1 (2 3) 4 5 6))
+
+;(begin "ignore" (cons 1 2) "begin result")
+
+;; convert procedures into cps form
+;(define (cps-prim f)
+; (lambda args
+;  (let ((r (reverse args)))
+;   ;(print "r=")
+;   ;(print r)
+;   ((car r) (apply f
+;             (reverse (cdr r))))))  )
+
+;(define *& (cps-prim *))
+;(define +& (cps-prim +))
+;(+& 2 3 (lambda (x) (print x)))
+
+;; make sure set-*! are working
+
+;(define set-test '(2 . 3))
+;set-test
+;(set-car! set-test 22)
+;set-test
+;(set-cdr! set-test 33)
+;set-test
+;(set! set-test '(222 . 333))
+;set-test
+
+
+
+; FIXME: no map-car
+
+;(define (map f . a*)
+;  (let
+;    ((carof
+;       (lambda (a)
+;         (map-car car a)))
+;     (cdrof
+;       (lambda (a)
+;         (map-car cdr a)))
+;     (_map
+;       (lambda (a* r)
+;         (cond ((null? (car a*)) (reverse r))
+;           (else (_map (cdrof a*)
+;                 (cons (apply f (carof a*)) r)))))))
+;    (cond ((null? a*)
+;        (bottom '(too few arguments to map)))
+;      (else (_map a* '())))))
+
+;(letrec ((x 1) (y 2)) (+ 2 3) (* 2 6))
+;(exit 1)
+
+(let ((a 1)) (+ a 11))
+(let ((a 1) (b 2)) (+ a b))
+(let* ((a 1)) (+ a 11))
+(let* ((a 1) (b 2)) (+ a b))
+
+(exit 0)
+
 ; keep last
+
 (if (> ?count 0)
   (begin
     (printerr "Error: Toy library failed verification tests\n")

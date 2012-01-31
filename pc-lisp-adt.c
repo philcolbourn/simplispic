@@ -107,17 +107,24 @@ a,(1 2) -> ( (a . (1 2)) )
 (a . b),(1 2 3 4 5) -> ( (a . 1) (b . (2 3 4 5)) )
 */
 
+/*
+(define make-alist (lambda (keys vals)
+  (cond ((null? keys) (if (null? vals) '() (warn "Not enough keys for values" 'vals vals)))
+        ((atom? keys) (list (make-kvp keys vals)) )
+        ((null? vals) (list (make-kvp (car keys) '())
+                            (make-alist (cdr keys) '())) )
+        (else (list (make-kvp (car keys) (car vals))
+                            (make-alist (cdr keys) (cdr vals)))  )) 
+))
+*/
 ATOM make_alist( ATOM keys,ATOM vals ){  // (a b),(1 2) -> ((a . 1)(b . 2))
-  //ALIST_PEEK( "",keys );
-  //ALIST_PEEK( "",vals );
   if ( is_null(keys) )
     if ( is_null(vals) ) return NIL;
     else EXIT( "Not enough keys for values",vals );
-  // not required to allow args to be NIL
-  //EXITIF( is_null( vals ),"Not enough values for keys",keys );
 
   if ( is_atom(keys) )   // handle list-arg and dot pair case
     return cons( make_kvp( keys,vals ),NIL );
+    
   if ( is_null(vals) ){
     ATOM kvp = make_kvp( car(keys),NIL );
     ATOM alst = cons( kvp,make_alist( cdr(keys),NIL ) );

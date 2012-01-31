@@ -18,18 +18,22 @@
 
 #define DUMP_ATOM(a)                                          \
   switch ( get_tag(a) ){                                      \
-  case SYM:                                                   \
-    if ( get_sym(a)<0 )                                       \
-      fprintf( stderr,TAG_FORMAT(CHR),-get_sym(a) );          \
+  case SYM:  case STR:                                                 \
+    if ( get_val(a)<0 ){                                      \
+      int s = -get_val(a);   \
+      fprintf( stderr,"string or symbol\n" );          \
+      fprintf( stderr,FORMAT(a),3,(char *)&s );          \
+    }                                                         \
     else                                                      \
-      fprintf( stderr,FORMAT(a),symbols[ get_sym(a) ].name ); \
-    break;                                                    \
-  case STR:                                                   \
-    fprintf( stderr,FORMAT(a),strings[ get_str(a) ] );        \
+      fprintf( stderr,FORMAT(a),strings[ get_val(a) ].len,    \
+                                strings[ get_val(a) ].text ); \
     break;                                                    \
   default:                                                    \
     fprintf( stderr,FORMAT(a),get_val(a) );                   \
   }
+//  case STR:                                                   \
+//    fprintf( stderr,FORMAT(a),strings[ get_str(a) ] );        \
+//    break;                                                    \
 
 /*
 FIXME: no longer used

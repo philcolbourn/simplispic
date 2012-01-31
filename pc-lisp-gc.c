@@ -257,7 +257,7 @@ ATOM (*cons)( ATOM a,ATOM b ) = consNormal;
 int _reusedPairCount  = 0;
 
 ATOM consNormal( ATOM a,ATOM b ){
-  _cm_check_mem();
+  //_cm_check_mem();
   ATOM c = _remove_next_free();   // remove from free list
   EXITIF( is_null(c),"Cons FATAL: All cells used",NIL );
   if ( is_eq( car(c),REC ) ){
@@ -267,6 +267,7 @@ ATOM consNormal( ATOM a,ATOM b ){
   set_car( c,a );
   set_cdr( c,b );
   EXITIF( _gcm(c)!=0,"GC mark not zero",c );
+  
   //PEEK( "done",c );
   //_cm_check_mem();  // may not be able to do this here since
   // nothing refs this new pair yet.
@@ -299,7 +300,7 @@ void _ms( ATOM env ){
   //_cm_clear_marks_on_atom( env,24 );  // clear marks in environment
   //_cm_check_mem();
   _ms_sweep_all_pairs( 24 );
-  _cm_check_mem();
+  //_cm_check_mem();
   //_cm_check_mem_leak();
   //PEEK( "done",NIL );
 }

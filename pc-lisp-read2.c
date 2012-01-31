@@ -26,6 +26,9 @@
 #define HASH     ( '#'  )
 #define DOT      ( '.'  )
 #define APOS     ( '\'' )
+#define BACK     ( '`' )
+#define AT       ( '@' )
+#define COMMA    ( ',' )
 #define QUOTE    ( '"'  )
 #define SEMI     ( ';'  )
 #define NUL      ( '\0' )
@@ -51,37 +54,46 @@ extern ATOM    kw_quote, kw_lambda, kw_closure;
 extern ATOM    kw_let, kw_let_star, kw_letrec;
 extern ATOM    kw_primitive, kw_exit;
 extern ATOM    kw_define, kw_set;
-extern ATOM    kw_read, kw_load, kw_eval, kw_eval1, kw_apply;
+extern ATOM    kw_read, kw_load, kw_eval, kw_eval1, kw_eval_macro, kw_apply;
 extern ATOM    kw_if, kw_cond;
 extern ATOM    kw_progn, kw_begin, kw_delay ,kw_force;
 extern ATOM    kw_display, kw_print;
 extern ATOM    kw_cons, kw_list, kw_cons_stream;
 
+       void    _strcpy( char *d,char *s,int n );
+       void    _strncpy( char *d,char *s,int n );
+
 extern ATOM    tag_env;
 static int   (*readch)();
-int     readchNormal();
-int     readchString();
+       int     readchNormal();
+       int     readchString();
 static int     getch();
 static void  (*ungetch)( int c );
 static void    ungetchNormal( int c );
 static void    ungetchString( int c );
+//static ATOM    reuse_sym();
 static int     getSYMch();
+static ATOM    readSYM     ();
+//static ATOM    readSYMc    ( int c );
+static int     reuse_str( char *buf,int len );
 static int     getSTRch();
+static ATOM    readSTR     ();
 static int     getNUMch();
+static ATOM    readNUM     ( int m,int c );
 static int     getCOMch();
+static ATOM    readCOM     ();
+static int     getCHRch();
 
 //static void readExit( char *m );
 static ATOM    readLST     ();
-static ATOM    readNUM     ( int m,int c );
 static ATOM    readSYMorNUM( int c );
-static ATOM    readSYM     ();
-//static ATOM    readSYMc    ( int c );
-static ATOM    readSTR     ();
-static ATOM    readCOM     ();
-ATOM    read        ();
+       ATOM    read        ();
+static ATOM    read_raw    ();
 static ATOM    read_token  ();
 static ATOM    readQUOTE   ();
-static ATOM    readCON     ();
+//static ATOM    readCON     ();
+static ATOM    let_star_to_let( ATOM kvps,ATOM body );
+       ATOM    eval_macros( ATOM exp );
 
 // END HEADER
 
@@ -102,7 +114,7 @@ ATOM    kw_quote, kw_lambda, kw_closure;
 ATOM    kw_let, kw_let_star, kw_letrec;
 ATOM    kw_primitive, kw_exit;
 ATOM    kw_define, kw_set;
-ATOM    kw_read, kw_load, kw_eval, kw_eval1, kw_apply;
+ATOM    kw_read, kw_load, kw_eval, kw_eval1, kw_eval_macro, kw_apply;
 ATOM    kw_if, kw_cond;
 ATOM    kw_progn, kw_begin, kw_delay ,kw_force;
 ATOM    kw_display, kw_print;
@@ -182,45 +194,6 @@ int getch(){
   return NUL;
 }
 
-int getSYMch(){ // return -char on non symbol except for escaped chars
-  int c = readch();
-  if ( c==ESC ){
-    c = readch();
-    if ( c=='n' )        return CR;
-    if ( c=='t' )        return TAB;
-    if ( c>=SP  )        return c;   // place after n and t
-    if ( c==EOF )        return c;
-    EXIT( "Illegal escaped char following '\\'",make_chr(c) );
-  }
-  if ( c>')'  )          return c;   // above )
-  if ( c>SP && c<'(' )   return c;   // space to below (
-  if ( c==EOF )          return c;   // -1
-  return -c;                         // else -c eg. SP, CR, TAB, (, )
-}
-
-int getSTRch(){          // return -char on " except for escaped chars
-  int c = readch();
-  if ( c==ESC ){
-    c = readch();
-    if ( c=='n' )        return CR;
-    if ( c=='t' )        return TAB;
-    if ( c>=SP  )        return c;   // place after n and t - includes "
-    if ( c==EOF )        return c;
-    EXIT( "Illegal escaped char following '\\'",make_chr(c) );
-  }
-  if ( c>QUOTE )         return c;   // above "
-  if ( c>0 && c<QUOTE )  return c;   // space to below "
-  if ( c==EOF )          return c;   // -1
-  return -c;                         // else -c eg. NUL, "
-}
-
-int getNUMch(){
-  int c = readch();
-  if ( c>='0' && c<='9' ) return c;
-  if ( c==EOF )           return c;  // -1
-  return -c;
-}
-
 ATOM read_token(){
   int c;
   SKIP:
@@ -230,7 +203,17 @@ ATOM read_token(){
   if ( c=='(' )            return make_chr(c);
   if ( c<=SP  )            goto   SKIP;            // skip whitespace
   if ( c==')' )            return make_chr(c);     // end-of-list
-  if ( c=='@' )            return readCON();       // constant
+  //if ( c=='@' )            return readCON();       // constant
+  if ( c=='#' ){
+    int c2 = getch();                           // test next character
+    if ( c2==ESC )         return make_chr( getCHRch() );
+    if ( c2=='t' )         return TRU;
+    if ( c2=='f' )         return FAL;
+    // other special values go here
+    ungetch(c2);                                   // put back for symbol
+    ungetch(c);
+    return readSYM();
+  }
   if ( c>='0' && c<='9' )  return readNUM(POS,c);
   if ( c=='-' || c=='+' )  return readSYMorNUM(c);
   if ( c==DOT ){                                   // DOT or symbol
@@ -244,28 +227,105 @@ ATOM read_token(){
   if ( c==SEMI ){
     c = getCOMch();
     if ( c==DOT )          return make_chr(EOF);   // ;. means force EOF
+    ungetch(c);  // bug: missing to ate next character. if \n, it ate next line!!!
     readCOM();
     goto SKIP;
   }         
-  if ( c==APOS )           return make_chr(APOS);  // quote
+  if ( c==APOS )           return make_chr(APOS);
+  if ( c==BACK )           return make_chr(BACK);
+  if ( c==COMMA )          return make_chr(COMMA);
   ungetch(c);              // put back since readSYM accepts escape codes
   return readSYM();        // anything else is a symbol
 }
 
-ATOM eval_macros( ATOM exp );
+// FIXME: is this a read macro?
+ATOM readQUOTE(){
+  ATOM atm = read();
+  ATOM lst = cons( atm,NIL );
+  ATOM res = cons( kw_quote,lst );
+  return res;
+}
+
 // FIXME: no good for (let () (e)) -> ((e)) instead of (e)
+// ((k v) ...) -> (let ((k v)) ...)
+/*
 ATOM let_star_to_let( ATOM kvps,ATOM body ){
   if ( is_null(kvps) )  return body;
   ATOM exp = let_star_to_let( cdr(kvps),body );
+  PEEK( "",exp );
   ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
-  ATOM let = cons( kw_let,cons( kvp,exp ) );
+  ATOM let = cons( kw_let,cons( kvp,cons( exp,NIL ) ) );
+  PEEK( "",let );
+  ATOM res = eval_macros( let );
+  PEEK( "",res );
+  return res;
+}
+*/
+ATOM let_star_to_let( ATOM kvps,ATOM body ){
+  if ( is_null( cdr(kvps) ) ){
+    ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
+    ATOM let = cons( kw_let,cons( kvp,body ) );
+    //PEEK( "",let );
+    ATOM res = eval_macros( let );
+    //PEEK( "",res );
+    return res;
+  }
+  ATOM exp = let_star_to_let( cdr(kvps),body );
+  //PEEK( "",exp );
+  ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
+  ATOM let = cons( kw_let,cons( kvp,cons( exp,NIL ) ) );
   //PEEK( "",let );
   ATOM res = eval_macros( let );
   //PEEK( "",res );
   return res;
 }
-
+/*
+ (define-syntax letrec 
+   (syntax-rules () 
+     ((_ ((var init) ...) . body) 
+      (let () 
+        (define var init) 
+        ... 
+        (let () . body))))) 
+(letrec ((v i) ...) . body)
+  -> (let () (define v i) ... (let () . body))
+*/
+// ((x 1) (y 2) body) -> ((define x 1) (define y 2) (let () body))
+ATOM kvps_to_defines( ATOM kvps,ATOM body ){
+  if ( is_null( kvps ) )
+    return cons( eval_macros( cons( kw_let,cons( NIL,body )) ),NIL );
+  ATOM def = cons( kw_define,car( kvps));
+  return cons( def,kvps_to_defines( cdr(kvps),body ) );
+}          
+/*
+(define (define exp)
+  (if (match-taglist exp 'define)
+      (letrec ((name (car (cadr exp)))
+               (form (cdr (cadr exp)))
+               (body (cddr exp))  )
+               (lamb (make-lambda form body)  )
+              (list 'define name lamb)  )
+      #f
+  )
+)
+*/
 ATOM eval_macros( ATOM exp ){
+  PEEK( "",exp );
+ 
+  ATOM kvp = assoc( kw_eval_macro,gEnv );
+  if ( ! is_eq( kvp,FAL ) ){  // macro system not booted yet
+  // (eval-macro '(inc 3))
+    ATOM nexp = cons( kw_eval_macro,cons( cons( kw_quote,cons( exp,NIL ) ),NIL ) );
+    //PEEK( "",exp );
+    //PEEK( "",nexp );
+    ATOM res = eval( nexp,gEnv );
+    PEEK( "",res );
+    //_ms( gEnv );  // but res is not in env so it gets swept up
+    //exit(1);
+    return res;
+  }
+  PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
+  return exp;
   // (define (<name> <form>) <body>) -> (define <name> (lambda (<form>) <body>))
   if ( match_taglist( exp,kw_define ) ){
     if ( is_list( _2ND( exp ) ) ){
@@ -304,6 +364,8 @@ ATOM eval_macros( ATOM exp ){
   }
 /*
 (let* ((x 1) (y 2)) <body>) -> (let ((x 1)) (let ((y 2)) <body>))
+-> (let ((x 1)) ((lambda (y) <body>) 2))
+-> ((lambda (x) ((lambda (y) <body>) 2)) 1)
 */
   if ( match_taglist( exp,kw_let_star ) ){
     //if ( is_alist( _2ND(exp) ) ){
@@ -314,6 +376,29 @@ ATOM eval_macros( ATOM exp ){
       return res;
     //}
     //PEEK( "bad let*",exp );
+  }
+/*
+(letrec ((x 1) (y 2)) <body>)
+  -> (let ()
+          (define x 1)
+          (define y 2)
+          (let () <body>))
+          
+ATOM kvps_to_defines( ATOM kvps,ATOM body ){
+  if ( is_null( kvps ) )  return cons( kw_let,cons( NIL,body ));
+  ATOM def = cons( kw_define,car( kvps));
+  return cons( def,kvps_to_defines( cdr(kvps),body ) );
+}          
+*/
+  if ( match_taglist( exp,kw_letrec ) ){
+    //PEEK( "found letrec",exp );
+    ATOM kvps = _2ND( exp );
+    ATOM body = _Rfrom3( exp );
+    ATOM defs = kvps_to_defines( kvps,body );
+    //PEEK( "",defs );
+    ATOM res = eval_macros( cons( kw_let,cons( NIL,defs) ) );
+    //PEEK( "",res );
+    return res;
   }
   // (cons-stream a <body>) -> (cons a (delay <body>))
   if ( match_taglist( exp,kw_cons_stream ) ){
@@ -339,7 +424,7 @@ ATOM eval_macros( ATOM exp ){
   return exp;  // no change
 }
 
-ATOM read(){
+ATOM read_raw(){
   ATOM t = read_token();
   //PEEK( "",t );  
   //_mem_print_used_pairs( "gEnv",gEnv,_global_save );
@@ -348,8 +433,8 @@ ATOM read(){
   if ( is_sym(t) )                  return t;
   if ( is_num(t) )                  return t;
   if ( is_str(t) )                  return t;
-  if ( is_eq( t,make_chr(APOS) ) )  return readQUOTE();
-  if ( is_eq( t,make_chr('(') )  )  return eval_macros( readLST() );
+  if ( is_eq( t,make_chr(APOS) ) )  return readQUOTE();  // FIXME: can this be macro?
+  if ( is_eq( t,make_chr('(') )  )  return readLST();  //eval_macros( readLST() );
   if ( is_eq( t,make_chr(')') )  )  return t;
   if ( is_eq( t,make_chr(DOT) ) )   return t;
   if ( is_chr(t) )                  return t;
@@ -358,35 +443,147 @@ ATOM read(){
   return NIL;
 }
 
-// common code to reuse already defined symbols - uses freeSym 
-ATOM reuse_sym(){
-  int i;
-  for ( i=1 ; i<freeSym ; i++ ){  // lookup symbol in rest of environment
-    if ( strcmp( symbols[i].name,symbols[freeSym].name )==0 ){  // match
-      ATOM a = make_sym( i );     // reuse prevous symbol storage
-      return a; 
-    }
-  }
-  ATOM a = make_sym( freeSym );   // new symbol
-  freeSym++;
-  return a;
+ATOM read(){
+  ATOM exp = read_raw();
+  ATOM res = eval_macros( exp );
+  return res;
 }
 
-// symbols are imutable
-ATOM readSYM(){
+/*
+(define space #\ )
+#\space ->#\ 
+if len >1 lookup symbol 
+*/
+
+int getCHRch(){
+  int c = readch();
+  if ( c>=SP  )          return c;
+  EXIT( "Illegal chararacter name '\\'",make_chr(c) );
+}
+
+/*
+get name
+if lebgth 1 -> ch
+else lookup
+ATOM readCHR(){
+  ATOM sym = readSYM();  // FIXME: make special readNAM
+  if 
+  ATOM a = assoc( sym );
   int i=0, c, l;
-  while ( c=getSYMch() , c>0 ){         // terminated by whitespace or ()
+  // exit if EOF
+  while ( c=getCHRch() , c>0 ){
     symbols[freeSym].name[i++] = c;
     EXITIF( i==(SYM_LEN-1),"Symbol too long",NIL );
     l = c;
   }
-  symbols[freeSym].name[i] = (char) 0;  // terminate string with NUL
+  c = getch();
+  EXITIF( c<0,"EOF",NIL );
+  
   if ( c!=EOF ) ungetch(-c);
   if ( i==1 ){            // FIXME: 1-3 chars in a short symbol?
     return make_sym(-l);  //use char instead of symbol
   }
   //if ( c!=EOF ) ungetch(-c);
   return reuse_sym();
+}
+*/
+
+void _strcpy( char *d,char *s,int n ){
+  int i = 0;
+  while( s[i]!=(char) 0 ){
+    d[i] = s[i];
+    i++;
+  }
+  d[i] = s[i];  // EOS
+  EXITIF( i+1!=n,"Copied more then n chracters!",make_num(n) );
+}
+
+void _strncpy( char *d,char *s,int n ){
+  int i;
+  for ( i=0;i<n;i++ ){
+    d[i] = s[i];
+  }
+  EXITIF( i!=n,"Copied more then n chracters!",make_num(n) );
+}
+
+
+int getSYMch(){ // return -char on non symbol except for escaped chars
+  int c = readch();
+  if ( c==ESC ){
+    c = readch();
+    if ( c=='n' )        return CR;
+    if ( c=='t' )        return TAB;
+    if ( c>=SP  )        return c;   // place after n and t
+    if ( c==EOF )        return c;
+    EXIT( "Illegal escaped char following '\\'",make_chr(c) );
+  }
+  if ( c>')'  )          return c;   // above )
+  if ( c>SP && c<'(' )   return c;   // space to below (
+  if ( c==EOF )          return c;   // -1
+  return -c;                         // else -c eg. SP, CR, TAB, (, )
+}
+
+int getSTRch(){          // return -char on " except for escaped chars
+  int c = readch();
+  if ( c==ESC ){
+    c = readch();
+    if ( c=='n' )        return CR;
+    if ( c=='t' )        return TAB;
+    if ( c>=SP  )        return c;   // place after n and t - includes "
+    if ( c==EOF )        return c;
+    EXIT( "Illegal escaped char following '\\'",make_chr(c) );
+  }
+  if ( c>QUOTE )         return c;   // above "
+  if ( c>0 && c<QUOTE )  return c;   // space to below "
+  if ( c==EOF )          return c;   // -1
+  return -c;                         // else -c eg. NUL, "
+}
+
+int make_short_string( char *buf,int i ){
+  int s = i << (3*8);                 // encode size of short string
+  _strncpy( (char *)&s,buf,i );       // copy short string to atom
+  return -s;
+}
+
+ATOM readSYM(){
+  char *buf = strings[0].text;
+  int i=0, c;
+  while ( c=getSYMch(),c>0 ){
+    buf[i++] = (char) c;
+    buf[i] = (char) 0;
+    strings[0].len = i;
+    EXITIF( i==(SYM_LEN-1),"Symbol too long",NIL);
+  }    
+  if ( c!=EOF ) ungetch(-c);
+  if ( i<=3 )  return make_sym( make_short_string( buf,i ) );
+  return make_sym( reuse_str( buf,i ) );
+}
+
+int reuse_str( char *buf,int len ){
+  int j;
+  for ( j=1 ; j<freeStr ; j++ ){
+    if ( strings[j].len==len && strcmp( strings[j].text,buf )==0 )  return j;
+  }
+  freeStr++;
+  strings[ j ].text = malloc( len+1 );
+  EXITIF( strings[ j ].text==NULL,"malloc returned NULL!",NIL );
+  _strcpy( strings[ j ].text,buf,len+1 );
+  strings[ j ].len = len;
+  return j;
+}
+
+ATOM readSTR(){
+  STRING *s = &strings[0];
+  char *buf = s->text;  //strings[0].text;  // large string buffer
+  int i=0,c;
+  while ( c=getSTRch(),c>0 ){         // terminated by NUL or "
+    buf[i++] = (char) c;  // added (char) valgrind help
+    s->len = i;
+    buf[i] = (char) 0;
+    EXITIF( i==(STR_LEN-1),"String too long",NIL);
+  }
+  if ( i<=3 )  return make_str( make_short_string( buf,i ) );
+  return make_str( reuse_str( buf,i ) );
 }
 
 // FIXME: could have signed number read
@@ -403,40 +600,12 @@ ATOM readSYMorNUM(int sign){
   return readNUM(POS,c);
 }
 
-void _strcpy( char *d,char *s,int n ){
-  int i = 0;
-  while( s[i]!=(char) 0 ){
-    d[i] = s[i];
-    i++;
-  }
-  d[i] = s[i];  // EOS
-  EXITIF( i+1!=n,"Copied more then n chracters!",make_num(n) );
-}
 
-ATOM readSTR(){
-  char buf[STR_LEN];  // large string buffer
-  int i=0,c;
-  while ( c=getSTRch(),c>0 ){         // terminated by NUL or "
-    buf[i++] = (char) c;  // added (char) valgrind help
-    //buf[i] = (char) 0;  // FIXME: terminate string with NUL for error message
-    EXITIF( i==(STR_LEN-1),"String too long",NIL);
-  }    
-  buf[i] = (char) 0;  // terminate string with NUL
-  int j;  // I reused i!! had to write my own strcpy to find it
-  for ( j=1 ; j<freeStr ; j++ ){         // match existing string?
-    if ( strcmp( strings[j],buf )==0 ){  // match
-      ATOM a = make_str( j );            // reuse prevous string storage
-      return a; 
-    }
-  }
-  // new string
-  strings[ freeStr ] = malloc( i+1 );        // storage for string
-  EXITIF( strings[ freeStr ]==NULL,"malloc returned NULL!",NIL );
-  //strcpy( strings[freeStr],buf );       // copy
-  _strcpy( strings[ freeStr ],buf,i+1 );       // copy
-  ATOM a = make_str( freeStr );           // new string
-  freeStr++;
-  return a;
+int getNUMch(){
+  int c = readch();
+  if ( c>='0' && c<='9' ) return c;
+  if ( c==EOF )           return c;  // -1
+  return -c;
 }
 
 // read number, m is -1 or 1 for - or + numbers and c is first digit
@@ -464,6 +633,7 @@ ATOM readCOM(){
   return NIL;            // no need to unget terminating CR or EOF
 }
 
+/*
 ATOM readCON(){
   int c;
   ATOM a;
@@ -487,6 +657,8 @@ ATOM readCON(){
   fprinta( stderr,sym );
   return sym;
 }
+*/
+
 /*
 (define (readLST)
   (let ((t (read)))
@@ -516,6 +688,7 @@ ATOM readLST(){
   return ret;
 }
 
+/*
 ATOM readLST_old(){
   ATOM t = read();
   if ( is_eq( t,EOL ) )  return NIL;
@@ -540,13 +713,8 @@ ATOM readLST_old(){
   }
   return a;
 }
-// FIXME: is this a read macro?
-ATOM readQUOTE(){
-  ATOM atm = read();
-  ATOM lst = cons( atm,NIL );
-  ATOM res = cons( kw_quote,lst );
-  return res;
-}
+*/
+
 
 ATOM readString(char *s){  // read eval string and return
   reads = readp = s;

@@ -22,17 +22,16 @@
 #include "pc-lisp-adt.c"
 #include "pc-lisp-eval-adt.c"
 
-#define TRUE     ( 1==1 )
-#define FALSE    ( 1==0 )
+#define TRUE             ( 1==1 )  // 1 or non-zero
+#define FALSE            ( 1==0 )  // 0
 
-#define BOOL( pred ) ( (pred) ? (TRU) : (NIL) )
+#define BOOL( pred )     ( (pred) ? (TRU) : (FAL) )
 #define RET_BOOL( pred ) return BOOL( pred )
-#define EQ_TAG(a,b)  ( get_tag(a)==get_tag(b) )
-#define NE_TAG(a,b)  ( ! EQ_TAG(a,b) )
-
-//typedef unsigned char CHAR;
+#define EQ_TAG(a,b)      ( get_tag(a)==get_tag(b) )
+#define NE_TAG(a,b)      ( ! EQ_TAG(a,b) )
 
 // Primitive procedures
+
 extern ATOM (*primFns[SIZE])();
 extern int    freeFun;
 
@@ -44,15 +43,13 @@ extern int    freeFun;
 extern ATOM    gEnv;             // global environment
 
 void    boot();            // warm-boot interpreter
+
 // predicates
 
 int     equal    ( ATOM a,ATOM b );
 int     not      ( int a );
 
-//int     isNIL( ATOM a );
-
 ATOM    pair ( ATOM key,ATOM val );
-ATOM    assoc( ATOM sym,ATOM env );
 ATOM    eval ( ATOM exp,ATOM env );
 ATOM    apply( ATOM proc,ATOM args );
 ATOM    exita( ATOM val );
@@ -60,10 +57,10 @@ ATOM    exita( ATOM val );
 //ATOM    readLoop();
 ATOM    repl();
 ATOM    readString( char *s );
-void   _strcpy( char *d,char *s,int n );
+//void   _strcpy( char *d,char *s,int n );
 
-ATOM    assoc2( ATOM sym,ATOM env );
-ATOM    assoc_kvp( ATOM sym,ATOM env );
+ATOM    assoc( ATOM sym,ATOM env );
+//ATOM    assoc_kvp( ATOM sym,ATOM env );
 ATOM    make_env();
 ATOM    extend_env( ATOM env );
 ATOM    env_find_kvp( ATOM env );
@@ -137,6 +134,8 @@ void boot(){
   fputs( "Booting...\n",stderr );
   freePairs = make_par(1);               // [1] is first free pair
 
+  //symbol_init();
+  string_init();
   for (i=0; i<SIZE; i++){
     ATOM p = make_par(i);       
     _set_car( p,MTY );  // do before chaining into freelist
@@ -146,11 +145,12 @@ void boot(){
     _set_ref( p,0 );
     _set_mem( p,make_mem( (i+1)%SIZE ) );  // chain free cells
     //_set_bak( p,make_bak( (i-1)%SIZE ) );
-    symbols[i].name[0] = 0;
-    _strcpy( symbols[i].name,"UNDEF SYM",10 );
-    strings[i]         = "UNDEF STR";
+    //symbols[i].name[0] = 0;
+    //symbols[i].len = 0;
+    //_strcpy( symbols[i].name,"UNDEF SYM",10 );
+    //strings[i]         = "UNDEF STR";
     primFns[i]         = _bad_primative_fn;
-    sar[i].val         = 0;
+    //sar[i].val         = 0;
   }
   usedPairs = make_par(0);               // [0] is used from begining
   _set_mem( usedPairs,usedPairs );  // make circular
@@ -208,6 +208,7 @@ void boot(){
   kw_exit        = readString( "exit"        );  
   kw_eval        = readString( "eval"        );
   kw_eval1       = readString( "eval1"       );
+  kw_eval_macro  = readString( "eval-macro"  );
   kw_apply       = readString( "apply"       );
   kw_if          = readString( "if"          );  
   kw_cond        = readString( "cond"        );
@@ -219,14 +220,15 @@ void boot(){
   kw_list        = readString( "list"        );
 
   tag_env        = readString( "env"         );
+  //null_env       = readString( "(define null-environment )" );
 
   fputs( "Create primitive procedures...\n",stderr );
   REGISTER_PRIMITIVES_1(  1,car     );
   //exit(1);
-  PEEK( "",gEnv );
+  //PEEK( "",gEnv );
   //exit(1);
   REGISTER_PRIMITIVES_1(  2,cdr     );
-  PEEK( "",gEnv );
+  //PEEK( "",gEnv );
   //exit(1);
   REGISTER_PRIMITIVES_2(  3,cons    );
   REGISTER_PRIMITIVES_2(  4,iadd    );
@@ -263,6 +265,11 @@ void boot(){
   REGISTER_PRIMITIVES_1( 34,printerr);
   REGISTER_PRIMITIVES_1( 35,exita   );
   REGISTER_PRIMITIVES_1( 36,disperr );
+  REGISTER_PRIMITIVES_1( 37,charp   );
+  REGISTER_PRIMITIVES_1( 38,numberp   );
+  REGISTER_PRIMITIVES_1( 39,symbolp   );
+  REGISTER_PRIMITIVES_1( 40,constantp   );
+  REGISTER_PRIMITIVES_1( 41,stringp   );
   
   fputs( "Booted.\n",stderr );
   //KEEP3(gEnv);  // FAILS
@@ -282,11 +289,13 @@ int equal( ATOM a,ATOM b ){            // are these atoms equivalent?
 EQUAL:
   if ( is_eq( a,b ) ) return TRUE;   // identical atoms are equal
   if NE_TAG( a,b )    return FALSE;  // different types are not equal
-  if ( is_str(a) ){
-    if ( strcmp( strings[ get_str(a) ],strings[ get_str(b) ] )==0 ) return TRUE;
-    return FALSE;
-  }
-  if ( is_par(a) ){
+  //if ( is_str(a) ){
+  //  EXIT( "FIXME: Using strcmp",a );
+  //  // FIXME: but strings share storage if identical
+  //  if ( strcmp( strings[ get_str(a) ].text,strings[ get_str(b) ].text )==0 ) return TRUE;
+  //  return FALSE;
+  //}
+  if ( is_pair(a) ){
     if ( equal( car(a),car(b) ) ){ 
       a = cdr(a);  
       b = cdr(b);  
@@ -296,9 +305,12 @@ EQUAL:
   return FALSE;
 }
 
-int not( int a ){ return !a; }
+int not( int a ){ 
+  if (a) return FALSE; 
+  else return TRUE; 
+}
 
-/*
+/* 
 ATOM set( ATOM var,ATOM val,ATOM env ){
   ATOM kvp = assoc-kvp( var,env );
   EXITIF( is_null( kvp ),"var not found in environment",var );
@@ -313,6 +325,7 @@ ATOM pair( ATOM keys,ATOM vals ){
   return make_alist( keys,vals );
 }
 
+/*
 // environments are circular: global.fn->(proc fEnv) -> ... -> global
 ATOM assoc( ATOM sym,ATOM env ){         // eg. ( (k.v) ((k.v) (k.v)) (k.v) )
 ASSOC:
@@ -343,14 +356,20 @@ ASSOC:
   if ( ! is_null(res) )  return res;
   return assoc( sym,cdr(env) );
 }
+*/
+
 
 // env is list of frames, a frame is an alist
-ATOM assoc2( ATOM sym,ATOM env ){         // eg. ( (k.v) ((k.v) (k.v)) 
+ATOM assoc( ATOM sym,ATOM env ){         // eg. ( ((k.v)) ((k.v) (k.v)) )
 ASSOC2:
-  if ( is_null(env) ) return NIL;    // reached end of environment
+  //PEEK( "",sym );
+  //PEEK( "",env );
+  if ( is_null(env) ) return FAL;    // reached end of environment
   ATOM frame = car( env );              // first frame
+  //PEEK( "",frame );
   ATOM kvp = alist_assoc( sym,frame );
-  if ( ! is_null(kvp) ){  // found
+  //PEEK( "",kvp );
+  if ( ! is_eq( kvp,FAL ) ){  // found
     return kvp;
   }
   // try next frame
@@ -358,6 +377,7 @@ ASSOC2:
   goto ASSOC2;
 }
 
+/*
 ATOM assoc_kvp( ATOM sym,ATOM env ){         // eg. ( (k.v) ((k.v) (k.v)) (k.v) )
 ASSOC:
   if ( is_null(env) ) return NIL;    // reached end of environment
@@ -374,6 +394,7 @@ ASSOC:
   if ( ! is_null(res) )  return res;
   return assoc_kvp( sym,cdr(env) );
 }
+*/
 
 /*
 ATOM make_env(){
@@ -516,69 +537,23 @@ ATOM addKVPair3( ATOM kvp,ATOM env ){
 #define LIST_OF_VALUES(exp,env) evallst(exp,env)
 
 int loop=0;
-ATOM eval(ATOM exp, ATOM env){
+ATOM eval( ATOM exp,ATOM env ){
   ATOM e;
-  //PEEK( "**********",exp );
+  //display( exp );
+  PEEK( "**********",exp );
   //PEEK( "**********",env );
   //loop++;
-  if ( is_self_eval(exp) ) return exp;                        // () -3 "str" c
-  if ( is_variable(exp)  ) return variable_value( exp,env );  // x -> 4
-  if ( is_quoted(exp)    ) return quoted_value( exp );        // (quote (1 2))
+  if ( is_self_eval(exp) ) return exp;
+  if ( is_variable(exp)  ) return variable_value( exp,env );
+  if ( is_quoted(exp)    ) return quoted_value( exp );
   MARK3;
 
-  if ( is_definition(exp))   // (define x 3)
-    RETURN3( eval_definition( exp,env ) );
-    
-  if ( is_set(exp)       )   // (set! x y)
-    RETURN3( eval_set( exp,env ) );
-    
-  if ( is_if(exp)        )   // (if (eq? n 0) "zero" "non zero"))
-    RETURN3( eval_if( exp,env ) );
-    
-  if ( is_cond(exp)      )   // (cond ((eq? n 0) "z") (else "nz"))
-    RETURN3( eval_cond_clauses( cdr(exp),env ) );
-
-  if ( is_eval_list(exp) )   // (list 1 (car x))
-    RETURN3( eval_list( exp,env ) );
-
-
-  if ( is_load(exp)      ){  // (load "filename")
-    /*
-    here, (load "filename") has been created in pairs
-    we dont want it so we dont call KEEP3
-    we can't get rid of it since we done have it in our list
-    of pairs created.
-    by makeing repl special and having a global pair list we get
-    around this issue
-    */
-    //peek( "eval.load: eret(define",ret );
-    FILE *f = fopen( strings[ get_str( _2ND(exp) ) ],"r" );
-    EXITIF( f==NULL,"Could not open file",exp );
-    FILE *old = in;
-    int old_pos=pos;  // FIXME: I don't think this works
-    int old_line=line;
-    in = f;
-  //setvbuf(in, buf, _IOLBF, BUF_SIZE);  // make file use my buffer
-    //buf[0]=0;
-    // FIXME: may have off effects here
-    // assume previous input was 100% ok up to (load )
-
-    //SYM_PEEK( "",exp );
-    GLOBAL_KEEP3( NIL );   // get rid of (load "filename" )
-    //_cm_check_mem();
-    ATOM ret = repl();
-    //PEEK( "A",ret );
-    _cm_check_mem();
-    //PEEK( "Z",ret );
-    fclose(f);
-    in = old;
-  //setvbuf(in, buf, _IOLBF, BUF_SIZE);  // make file use my buffer
-    //buf[0]=0;
-    line=old_line;
-    pos=old_pos;
-    //RETURN3( readString("loaded") );  // could do this but repl has done all work
-    return readString( "\"File loaded.\"" );
-  }
+  if ( is_definition(exp)) RETURN3( eval_definition( exp,env ) );
+  if ( is_set(exp)       ) RETURN3( eval_set( exp,env ) );
+  if ( is_if(exp)        ) RETURN3( eval_if( exp,env ) );
+  if ( is_cond(exp)      ) RETURN3( eval_cond_clauses( cdr(exp),env ) );
+  if ( is_eval_list(exp) ) RETURN3( eval_list( exp,env ) );
+  if ( is_load(exp)      ) RETURN3( eval_load( exp,env ) );
   // (eval exp env) special form since no need to evaluate env
   if ( is_eval(exp) ){       // exp = (eval exp env)
     ATOM exp1 = _2ND( exp );
@@ -799,6 +774,16 @@ ATOM repl(){                            // read eval print loop
       //PEEK( "Print:",ret );
       //_cm_check_mem();
       GLOBAL_KEEP3( NIL );
+      if ( _usedPairMaxCount == _usedPairCount){
+        fprintf( stderr,"\n" );
+        fprintf( stderr,"      Free=%d\n",_freePairCount  );
+        fprintf( stderr,"      Used=%d\n",_usedPairCount  );
+        fprintf( stderr,"  Max Used=%d\n",_usedPairMaxCount  );
+        fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
+        fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
+        fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
+        fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
+      }
       //_cm_check_mem();
       //PEEK( "X",ret );
       // FIXME: maybe keep first kvp in env? and pair?
@@ -807,14 +792,14 @@ ATOM repl(){                            // read eval print loop
     //exit(1);
     //PEEK( "4",NIL );
     _ms( gEnv );
-    _cm_check_mem();
+    //_cm_check_mem();
     //PEEK( "5",NIL );
     puts( "" );
   }
   //PEEK( "Before keep3",gEnv );
   //GLOBAL_KEEP3( gEnv );  // FIXME: redundant now?
   //_ms( gEnv );
-  _cm_check_mem();
+  //_cm_check_mem();
   //_cm_check_mem_leak();
   //PEEK( "After keep2",gEnv );
   //PEEK( "return",gEnv );
@@ -824,6 +809,13 @@ ATOM repl(){                            // read eval print loop
 
 int main(){  // clang bug
   //boot();  _test();
+//  fprintf( stderr,"0==0->%d  0==1->%d\n",(0==0),(0==1) );
+//  fprintf( stderr,"0 && 1->%d  0 && 2->%d\n",(0&&1),(0&&2) );
+//  fprintf( stderr,"0 || 1->%d  0 || 2->%d\n",(0||1),(0||2) );
+//  fprintf( stderr,"1 && 1->%d  1 && 2->%d\n",(1&&1),(1&&2) );
+//  fprintf( stderr,"1 || 1->%d  1 || 2->%d\n",(1||1),(1||2) );
+//  fprintf( stderr,"not 0->%d  not 1->%d  not 2->%d\n",(!0),(!1),(!2) );
+//  exit(1);
   fprintf( stderr,"\n\n\n\n\n\n\n\n\n\nStart\n" );
   boot();
   in = stdin;
@@ -844,7 +836,7 @@ int main(){  // clang bug
   fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
   fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
   fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
-  fprintf( stderr,"Symbols   =%d\n",freeSym );
+  //fprintf( stderr,"Symbols   =%d\n",freeSym );
   fprintf( stderr,"Strings   =%d\n",freeStr );
   //fprintf( stderr,"  Recycled=%d\n",_recycleStrCount );
   return 0;

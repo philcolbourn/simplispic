@@ -71,6 +71,9 @@ END
 #time cat test.pcl | ./a.cpp.clang.out > result.cpp.clang.out
 time cat test.pcl | ./a.gcc.out       > result.gcc.out
 
+cat result.gcc.out
+exit 1
+
 #try ./pc-r4rstest.bash 2>&1 | less
 
 echo "Compare expected to actual result from gcc..."

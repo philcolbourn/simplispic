@@ -60,6 +60,7 @@ ATOM eval_cond_clauses( ATOM lst,ATOM env );
 // FIXME: what if one exp is a define? - seems to work
 ATOM eval_progn( ATOM seq,ATOM env );
 ATOM eval_list( ATOM exp,ATOM env );
+ATOM eval_load( ATOM exp,ATOM env );
 
 /*
 definition ADT
@@ -104,15 +105,18 @@ int is_delay      ( ATOM exp ){ return match_taglist( exp,kw_delay )      ; }
 int is_eval_list  ( ATOM exp ){ return match_taglist( exp,kw_list )       ; }
 int is_if         ( ATOM exp ){ return match_taglist( exp,kw_if )         ; }
 int is_cond       ( ATOM exp ){ return match_taglist( exp,kw_cond )       ; }
+//int is_and        ( ATOM exp ){ return match_taglist( exp,kw_and )        ; }
+//int is_or         ( ATOM exp ){ return match_taglist( exp,kw_or )         ; }
 int is_quoted     ( ATOM exp ){ return match_taglist( exp,kw_quote )      ; }
 int is_definition ( ATOM exp ){ return match_taglist( exp,kw_define )     ; }
 int is_variable   ( ATOM exp ){ return is_sym( exp )                      ; }
-int is_set        ( ATOM exp ){ return match_taglist( exp,kw_set        )     ; }
+int is_set        ( ATOM exp ){ return match_taglist( exp,kw_set    )     ; }
 int is_self_eval  ( ATOM exp ){
   return is_null(exp) || is_num(exp) || is_chr(exp) || is_str(exp) || is_con(exp);
 }
 
 ATOM quoted_value( ATOM exp ){
+  //PEEK( "",exp );
   return car( taglist_list( exp ) );
 }
 
@@ -144,7 +148,8 @@ ATOM eval_if( ATOM exp,ATOM env ){
   //PEEK( "",pred );
   ATOM epred = eval( pred,env );  // eval predicate
   //PEEK( "",epred );
-  if ( ! is_null(epred) ){
+  //if ( ! is_null(epred) ){  // when () was false
+  if ( ! is_eq( epred,FAL ) ){
     ATOM con = if_con(exp);
     //PEEK( "",con );
     ATOM res = eval( con,env );
@@ -184,7 +189,8 @@ ATOM cond_clause_con( ATOM clau ){
 ATOM eval_cond_clauses( ATOM lst,ATOM env ){
   ATOM clau = car( lst );
   ATOM pred = cond_clause_pred( clau );
-  if ( ! is_null( eval(pred,env) ) ){
+  //if ( ! is_null( eval(pred,env) ) ){  // old when () was false
+  if ( ! is_eq( eval(pred,env),FAL ) ){
     ATOM con = cond_clause_con( clau );
     return evalseq( con,env );  // FIXME: is this right?
   }
@@ -202,7 +208,7 @@ ATOM eval_progn( ATOM seq,ATOM env ){
   RETURN3( res );
 }
 
-
+// (define list (lambda args) args)
 
 ATOM eval_list( ATOM exp,ATOM env ){
   ATOM args = app_args( exp );
@@ -210,6 +216,31 @@ ATOM eval_list( ATOM exp,ATOM env ){
   return list;
 }
 
+ATOM eval_load( ATOM exp,ATOM env ){
+    FILE *f = fopen( strings[ get_str( _2ND(exp) ) ].text,"r" );
+    EXITIF( f==NULL,"Could not open file",exp );
+    FILE *old = in;
+    int old_pos = pos;  // FIXME: I don't think this works
+    int old_line = line;
+    in = f;
+    //setvbuf( in,buf,_IOLBF,BUF_SIZE );  // make file use my buffer
+    //buf[0]=0;
+    // FIXME: may have off effects here
+    // assume previous input was 100% ok up to (load )
+
+    GLOBAL_KEEP3( NIL );   // get rid of (load "filename" )
+    //_cm_check_mem();
+    ATOM ret = repl();
+    //_cm_check_mem();
+    fclose(f);
+    in = old;
+    //setvbuf( in,buf,_IOLBF,BUF_SIZE );
+    //buf[0]=0;
+    line = old_line;
+    pos = old_pos;
+    //RETURN3( readString("loaded") );  // could do this but repl has done all work
+    return readString( "\"File loaded.\"" );
+}
 
 
 /*
@@ -243,10 +274,15 @@ ATOM eval_definition( ATOM exp,ATOM env ){
   //_mem_print_used_pairs( "used",usedPairs,_save );
   //PEEK( "",env );
   ATOM sym    = _2ND( exp );
-  //PEEK( "",sym );
   ATOM val    = eval( _3RD(exp),env ); // we must (eval value)
+  ATOM kvp    = assoc( sym,env );  // should work
+  if ( ! is_eq( kvp,FAL ) ){  // redefine
+    ATOM res = set_cdr( kvp,val );
+    RETURN3( sym );
+  }
+  //PEEK( "",sym );
   //PEEK( "",val );
-  ATOM kvp    = make_kvp( sym,val );
+  kvp    = make_kvp( sym,val );
   //_mem_print_used_pairs( "used",usedPairs,_save );
   //PEEK( "",kvp );
   //_gc_mark_assignments_as_special( kvp );
@@ -274,9 +310,11 @@ ATOM eval_set( ATOM exp,ATOM env ){
   ATOM val    = eval( _3RD(exp),env ); // we must (eval value)
   //PEEK( "",sym );
   //PEEK( "",val );
-  ATOM kvp    = assoc_kvp( sym,env );
+  //ATOM kvp    = assoc_kvp( sym,env );
+  ATOM kvp    = assoc( sym,env );  // should work
   //PEEK( "",kvp );
-  EXITIF( is_null( kvp ),"sym not found in environment",sym );
+  //EXITIF( is_null( kvp ),"sym not found in environment",sym );
+  EXITIF( is_eq( kvp,FAL ),"sym not found in environment",sym );
   ATOM res = set_cdr( kvp,val );
   // should be able to gc here
   //_ms( kvp );
@@ -293,8 +331,9 @@ ATOM eval_set( ATOM exp,ATOM env ){
 
 ATOM variable_value( ATOM var,ATOM env ){
   //ATOM res = assoc( var,env );
-  ATOM kvp = assoc2( var,env );
-  EXITIF( is_null( kvp ),"var not found in environment",var );
+  ATOM kvp = assoc( var,env );
+  if ( is_eq( kvp,FAL ) ) return FAL;
+  //EXITIF( is_null( kvp ),"var not found in environment",var );
   ATOM res = kvp_val(kvp);
   return res;
 }

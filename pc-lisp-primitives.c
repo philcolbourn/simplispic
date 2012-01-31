@@ -13,12 +13,12 @@
 #include "pc-lisp-print.c"
 
 #define MAKE_PRIMITIVE_0( proc )                                  \
-ATOM prim_##proc( ATOM args,ATOM env );
+  ATOM prim_##proc( ATOM args,ATOM env );
 
 MAKE_PRIMITIVE_0( read );
 
 #define MAKE_PRIMITIVE_1( proc )                                  \
-ATOM prim_##proc( ATOM args,ATOM env );
+  ATOM prim_##proc( ATOM args,ATOM env );
 
 MAKE_PRIMITIVE_1( car );
 MAKE_PRIMITIVE_1( cdr );
@@ -68,8 +68,8 @@ MAKE_PRIMITIVE_1( cdddar );
 MAKE_PRIMITIVE_1( cddddr );
 */
 
-#define MAKE_PRIMITIVE_2( proc )                                  \
-ATOM prim_##proc( ATOM args,ATOM env );
+#define MAKE_PRIMITIVE_2( proc )         \
+  ATOM prim_##proc( ATOM args,ATOM env );
 
 MAKE_PRIMITIVE_2( cons    );
 MAKE_PRIMITIVE_2( eval    );
@@ -79,9 +79,9 @@ MAKE_PRIMITIVE_2( set_cdr );
 //MAKE_PRIMITIVE_2( apply   );
 
 
-#define MAKE_OP( proc,op )                       \
-ATOM proc( ATOM a,ATOM b );                      \
-MAKE_PRIMITIVE_2( proc )  /* register is as well */
+#define MAKE_OP( proc,op )                             \
+  ATOM proc( ATOM a,ATOM b );                          \
+  MAKE_PRIMITIVE_2( proc )  /* register is as well */
 
 // make basic operators
 MAKE_OP( iadd,+  );
@@ -92,9 +92,9 @@ MAKE_OP( imod,%  );
 MAKE_OP( ishl,<< );
 MAKE_OP( ishr,>> );
 
-#define MAKE_PRED_OP( proc,op )          \
-ATOM proc( ATOM a,ATOM b );              \
-MAKE_PRIMITIVE_2( proc )
+#define MAKE_PRED_OP( proc,op )  \
+  ATOM proc( ATOM a,ATOM b );    \
+  MAKE_PRIMITIVE_2( proc )
 
 MAKE_PRED_OP( ilt,<   );
 MAKE_PRED_OP( igt,>   );
@@ -105,20 +105,25 @@ MAKE_PRED_OP( and,&&  );
 MAKE_PRED_OP( or,||   );
 
 // wrap a c predicate function so it returns an atom
-#define MAKE_PRED_1( pred,cfun )                  \
-ATOM pred( ATOM a );                              \
-MAKE_PRIMITIVE_1( pred )  /* register as well */
+#define MAKE_PRED_1( pred,cfun )                    \
+  ATOM pred( ATOM a );                              \
+  MAKE_PRIMITIVE_1( pred )  /* register as well */
 
 MAKE_PRED_1( atomp,is_atom );
 MAKE_PRED_1( listp,is_list );
 MAKE_PRED_1( pairp,is_pair );
 MAKE_PRED_1( nullp,is_null );
 MAKE_PRED_1( procp,is_proc );
+MAKE_PRED_1( charp,is_chr );
+MAKE_PRED_1( numberp,is_num );
+MAKE_PRED_1( symbolp,is_symbol );
+MAKE_PRED_1( constantp,is_con );
+MAKE_PRED_1( stringp,is_str );
 
 
-#define MAKE_PRED_2( pred,cfun )    \
-ATOM pred( ATOM a,ATOM b );         \
-MAKE_PRIMITIVE_2( pred )  /* register as well */
+#define MAKE_PRED_2( pred,cfun )                    \
+  ATOM pred( ATOM a,ATOM b );                       \
+  MAKE_PRIMITIVE_2( pred )  /* register as well */
 
 MAKE_PRED_2( eqp,is_eq    );
 MAKE_PRED_2( equalp,equal );
@@ -131,24 +136,26 @@ MAKE_PRED_2( equalp,equal );
 
 #undef MAKE_PRIMITIVE_0
 
-#define MAKE_PRIMITIVE_0( proc )                                  \
-ATOM prim_##proc( ATOM args,ATOM env ){                           \
-  ATOM res = proc();                                              \
-  return res;                                                     \
-}
+#define MAKE_PRIMITIVE_0( proc )                                    \
+  ATOM prim_##proc( ATOM args,ATOM env ){                           \
+    ATOM res = proc();                                              \
+    return res;                                                     \
+  }
 
 MAKE_PRIMITIVE_0( read );
 
+
+
 #undef MAKE_PRIMITIVE_1
 
-#define MAKE_PRIMITIVE_1( proc )                                  \
-ATOM prim_##proc( ATOM args,ATOM env ){  /* arguments in list */  \
-  /*peek( "prim_" #proc ": args",args );/**/                      \
-  ATOM a = car( args );                                           \
-  ATOM res = proc( a );                                           \
-  /*peek( "prim_" #proc ": res",res );/**/                        \
-  return res;                                                     \
-}
+#define MAKE_PRIMITIVE_1( proc )                                    \
+  ATOM prim_##proc( ATOM args,ATOM env ){  /* arguments in list */  \
+    /*peek( "prim_" #proc ": args",args );/**/                      \
+    ATOM a = car( args );                                           \
+    ATOM res = proc( a );                                           \
+    /*peek( "prim_" #proc ": res",res );/**/                        \
+    return res;                                                     \
+  }
 
 MAKE_PRIMITIVE_1( car );
 MAKE_PRIMITIVE_1( cdr );
@@ -199,15 +206,15 @@ MAKE_PRIMITIVE_1( cddddr );
 */
 #undef MAKE_PRIMITIVE_2
 
-#define MAKE_PRIMITIVE_2( proc )                                  \
-ATOM prim_##proc( ATOM args,ATOM env ){  /* arguments in list */  \
-  /*peek( "prim_" #proc ": args",args );/**/                      \
-  ATOM a = car( args );                                           \
-  ATOM b = cadr( args );                                          \
-  ATOM res = proc( a,b );                                         \
-  /*peek( "prim_" #proc ": res",res );/**/                        \
-  return res;                                                     \
-}
+#define MAKE_PRIMITIVE_2( proc )                                    \
+  ATOM prim_##proc( ATOM args,ATOM env ){  /* arguments in list */  \
+    /*peek( "prim_" #proc ": args",args );/**/                      \
+    ATOM a = car( args );                                           \
+    ATOM b = cadr( args );                                          \
+    ATOM res = proc( a,b );                                         \
+    /*peek( "prim_" #proc ": res",res );/**/                        \
+    return res;                                                     \
+  }
 
 MAKE_PRIMITIVE_2( cons    );
 MAKE_PRIMITIVE_2( eval    );
@@ -218,11 +225,11 @@ MAKE_PRIMITIVE_2( set_cdr );
 
 #undef MAKE_OP
 
-#define MAKE_OP( proc,op )                       \
-ATOM inline proc( ATOM a,ATOM b ){               \
-  return make_num( get_num(a) op get_num(b) );   \
-}                                                \
-MAKE_PRIMITIVE_2( proc )  /* register is as well */
+#define MAKE_OP( proc,op )                             \
+  ATOM inline proc( ATOM a,ATOM b ){                   \
+    return make_num( get_num(a) op get_num(b) );       \
+  }                                                    \
+  MAKE_PRIMITIVE_2( proc )  /* register is as well */
 
 // make basic operators
 MAKE_OP( iadd,+  );
@@ -235,11 +242,12 @@ MAKE_OP( ishr,>> );
 
 #undef MAKE_PRED_OP
 
-#define MAKE_PRED_OP( proc,op )          \
-ATOM inline proc( ATOM a,ATOM b ){       \
-  RET_BOOL( get_num(a) op get_num(b) );  \
-}                                        \
-MAKE_PRIMITIVE_2( proc )
+#define MAKE_PRED_OP( proc,op )            \
+  ATOM inline proc( ATOM a,ATOM b ){       \
+    /*RET_BOOL( get_num(a) op get_num(b) );/**/  \
+    RET_BOOL( get_val(a) op get_val(b) );  \
+  }                                        \
+  MAKE_PRIMITIVE_2( proc )
 
 MAKE_PRED_OP( ilt,<   );
 MAKE_PRED_OP( igt,>   );
@@ -252,24 +260,30 @@ MAKE_PRED_OP( or,||   );
 // wrap a c predicate function so it returns an atom
 #undef MAKE_PRED_1
 
-#define MAKE_PRED_1( pred,cfun )                  \
-inline ATOM pred( ATOM a ){                       \
-  RET_BOOL( cfun(a) ); }                          \
-MAKE_PRIMITIVE_1( pred )  /* register as well */
+#define MAKE_PRED_1( pred,cfun )                    \
+  inline ATOM pred( ATOM a ){                       \
+    RET_BOOL( cfun(a) ); }                          \
+  MAKE_PRIMITIVE_1( pred )  /* register as well */
 
 MAKE_PRED_1( atomp,is_atom );
 MAKE_PRED_1( listp,is_list );
 MAKE_PRED_1( pairp,is_pair );
 MAKE_PRED_1( nullp,is_null );
 MAKE_PRED_1( procp,is_proc );
+MAKE_PRED_1( charp,is_chr );
+MAKE_PRED_1( numberp,is_num );
+MAKE_PRED_1( symbolp,is_symbol );
+MAKE_PRED_1( constantp,is_con );
+MAKE_PRED_1( stringp,is_str );
+
 
 #undef MAKE_PRED_2
 
-#define MAKE_PRED_2( pred,cfun )    \
-inline ATOM pred( ATOM a,ATOM b ){  \
-  RET_BOOL( cfun(a,b) );            \
-}                                   \
-MAKE_PRIMITIVE_2( pred )  /* register as well */
+#define MAKE_PRED_2( pred,cfun )      \
+  inline ATOM pred( ATOM a,ATOM b ){  \
+    RET_BOOL( cfun(a,b) );            \
+  }                                   \
+  MAKE_PRIMITIVE_2( pred )  /* register as well */
 
 MAKE_PRED_2( eqp,is_eq    );
 MAKE_PRED_2( equalp,equal );
