@@ -117,14 +117,14 @@ void peek( char *m,ATOM a ){
 
 void _mem_print_used_pairs( char *m,ATOM p,ATOM save ){
   ATOM i = p;
-  if ( is_null(i) ) i=_mem(p);
+  if ( is_eq( i,MEM0 ) ) i=_mem(p);
   fprintf( stderr,"==================\n" );    
   fprintf( stderr,"usedPairs    = %d\n",get_val( _mem(usedPairs) ) );    
   fprintf( stderr,"lastUsedPair = %d\n",get_val( lastUsedPair )    );    
   fprintf( stderr,"global save  = %d\n",get_val( _global_save )    );    
   fprintf( stderr,"save         = %d\n",get_val( save )            );    
   fprintf( stderr,"%s",m );    
-  while ( ! is_null(i) ){
+  while ( ! is_eq( i,MEM0 ) ){
     if ( is_eq( i,_mem(usedPairs) ) ) fprintf( stderr,"\n\nUSED" );    
     if ( is_eq( i,lastUsedPair ) )    fprintf( stderr,"\n\nLAST" );    
     if ( is_eq( i,_global_save ) )    fprintf( stderr,"\n\nGLOB" );    
@@ -174,7 +174,8 @@ void _cm_ensure_all_pairs_not_marked( int m ){
 void _cm_clear_marks_on_free_pairs( int m ){
   int c = 0;
   ATOM f = freePairs;
-  while ( ! is_null(f) ){
+  //while ( ! is_null(f) ){
+  while ( ! is_eq( f,MEM0 ) ){
     WARNIF( _mrk(f)!=m,"Free pair not marked!",f );
     if ( _mrk(f)!=m ) c++;
     _set_mrk( f,0 );
@@ -189,7 +190,8 @@ void _cm_clear_marks_on_used_pairs( int m ){
     EXITIF( _mrk(u)!=m,"Used pair not marked!",u);
     _set_mrk( u,0 );
     u = _mem(u);
-  }while ( ! is_null(u) );
+  //}while ( ! is_null(u) );
+  }while ( ! is_eq( u,MEM0 ) );
 }
 
 void _cm_clear_marks_on_atom( ATOM a,int m ){

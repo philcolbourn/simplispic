@@ -29,8 +29,7 @@
 (define extend-alist (lambda (kvp alst) (cons kvp alst)))
 
 (define alist-assoc (lambda (key alst)
-  ;(peek "alist-assoc key=") (print key) (newline)
-  ;(display "alst=") (print alst) (newline)
+  ;(displayn "alist-assoc  key=[" key "]  alst=[" alst "]")
   (cond ((null? alst) #f)
         ((eq? key (kvp-key (car alst))) 
          ;(peek "found key->" (car alst))
@@ -38,13 +37,24 @@
         (else (alist-assoc key (cdr alst)))  )))
 
 (define alist-lookup (lambda (key alst)
-  (define kvp (alist-assoc key alst))
-  (if kvp (kvp-val kvp) "Key not found")  ))
+  ;(displayn "alist-lookup  key=[" key "]  alst=[" alst "]")
+  (cond ((null? alst) key)
+        ((eq? key (kvp-key (car alst))) (kvp-val (car alst)))
+        (else (alist-lookup key (cdr alst)))  )))
   
+(define assocv2 (lambda (sym env)
+  (cond ((null? env) #f)
+        (else
+          ((lambda (kvp)
+                   (if kvp 
+                       kvp 
+                       (assoc sym (cdr env))  ))
+           (alist-assoc sym (car env)))  ))))
+
 (define assoc (lambda (sym env)
   (cond ((null? env) #f)
         (else
-          (define kvp (alist-assoc sym (car env))) 
+          (define kvp (alist-assoc-fail sym (car env) #f)) 
           (if kvp 
               kvp 
               (assoc sym (cdr env))  )))))
@@ -63,14 +73,12 @@
 ; display args separated by a leading space 
 
 (define displayn (lambda args
-  (define displayn-worker (lambda (args)
-    (if (null? args) 
-        (display #\n) 
-        (progn 
-          (display " ")
-          (display (car args)) 
-          (displayn-worker (cdr args))  ))))
-  (displayn-worker args)  ))
+  (if (null? args) 
+      (display "\n") 
+      (progn 
+        (display " ")
+        (display (car args)) 
+        (apply displayn (cdr args))  ))))
 
 (displayn 1)
 (displayn 1 "2")
@@ -85,110 +93,97 @@
 
 ; define or match a symbol
 
-; note: different to SICP
-
-; if symbol is defined in env,
-;   if symbol is undefinged then define it as exp
-;   else match its value
-; else match symbol
-
-(define define-or-match-symbol (lambda (sym exp env)
-  ;(peek "doms: sym=[" sym  " ]  exp=[" exp  " ]  env=[" env " ]")
-  (define kvp (alist-assoc sym env))         ; lookup in env
-  ;(peek "  kvp=[" kvp " ]")
-  (if kvp                                   ; symbol found in env
-      (progn
-        (define val (kvp-val kvp))
-        ;(peek "    variable found val=[" val " ]")
-        (if (eq? val '*UNDEF*)
-            (progn
-              ;(peek "      set variable to [" exp " ]")
-              (set-cdr! kvp exp)          ; bind symbol in env
-              env
-            )
-            (if (equal? val exp) env #f)  )
-            ;(if (match? val exp env) env #f)     ; FIXME: match?
-      )
-      ; symbol is not a variable so treat as constant
-      (if (eq? sym exp) 
-          env               ; symbol matches without looking up in env
-          #f  )  )  ))
-
-; this was similar to SICP - does not require an initialised environment
-
-; old 'implied variable method'
-;        ((symbol? tem)  ; if symbol does not match, lookup or define symbol
-;         ;(display "match symbol=") (print tem) (newline)
-;         (if (eq? tem exp) 
-;             env  ; symbol matches without looking up in env
-;             (progn
-;               (define kvl (alist-assoc tem env))
-;               ;(display "kvl=") (print kvl) (newline)
-;               (if kvl ; symbol found in env
-;                   (if (equal? (kvl-val kvl) exp) env #f)
-;                   (extend-alist (make-kvl tem exp) env)  ; bind symbol in env
-;                     ))))
+(define match-or-define-variable (lambda (kvp var exp env)
+  ;(displayn "modv: kvp=[" kvp "]  var=[" var  "]  exp=[" exp  "]  env=[" env "]")
+  (cond (kvp  ;(displayn "  variable found var=" var "]  val=[" (kvp-val kvp) "]")
+              (if (equal? (kvp-val kvp) exp) env #f)
+              ;(if (match? (kvp-val kvp) exp env) env #f)     ; FIXME: match?
+        )     
+        (else (extend-alist (make-kvp var exp) env))  )))
 
 ; does template match expression given environment
-; eg.
-;  (define (<name> . <formals>) <body>)
-;  (define (add1 x) (+ x 1))
-;  ((<name> . *UNDEF*) (<formals> . *UNDEF*) (<body> . *UNDEF*))
-; ->
-;  ((<name> . add1) (<formals> . (x)) (<body> . (+ x 1))
-;
-(define match (lambda (tem exp env)
-  ;(peek "match tem=[" tem " ]  exp=[" exp " ]  env=[" env " ]")
-  (cond 
-        ((eq? env #f) #f) 
-        ((null? tem) 
-         ;(peek "END OF TEMPLATE exp=" exp) 
-         (if (null? exp) env #f)  )
-        ((null? exp) 
-         ;(peek "END OF EXPRESSION tem=" tem)
-         #f  )                                ; end of expression
-        ((symbol? tem)    ; if symbol does not match, lookup or define symbol
-         ;(peek "symbol=" tem)
-         (define-or-match-symbol tem exp env)  )
-        ((atom? tem) 
-         ;(peek "atom=" tem)
-         (if (eq? tem exp) env #f)  )
-        ; pair
-        ((pair? tem) 
-         ;(peek "pair=" tem)
-         (if (pair? exp) 
-           (match (cdr tem) 
-                  (cdr exp) 
-                  (match (car tem) (car exp) env)  )
-           #f  ))
-        (else (peek "unknown list element") #f)  )
+
+(define var? (lambda (tem)
+  (if (symbol? tem)
+      (if (eq? (symbol-ref tem 0) #\?) 
+          (if (> (symbol-length tem) 1) #t #f) 
+          #f  )
+      #f  )
 ))
 
-match
+(equal? '() '())
+(equal? '(1) '())
+(equal? 1 1)
+(equal? 'a 'a)
+(equal? 'abcd 'abcd)
+(equal? "a" "a")
+(equal? "abcd" "abcd")
+(equal? '(1 a) '(1 a))
+(equal? '(1 (2 () 3) a) '(1 (2 () 3) a))
 
-;(define trace (lambda (proc)
-;  (define old-proc proc)
-  
+(define match (lambda (tem exp env)
+  ;(displayn "match tem=[" tem "]  exp=[" exp "]  env=[" env "]")
+  (cond 
+        ((eq? env #f) #f) 
+        ;((null? tem)  ;(displayn "END OF TEMPLATE exp=" exp) 
+        ;              (if (null? exp) env #f)  )
+        ;((null? exp)  ;(displayn "END OF EXPRESSION tem=" tem)
+        ;              #f  )
+        ; SICP place
+        ;((eq? tem exp) env)
+        ((equal? tem exp) env)
+        ((var? tem)   ;(displayn "symbol=" tem)
+                      (match-or-define-variable (alist-assoc tem env) tem exp env)  )
+        ; my place for atom?
+        ;((atom? tem)  ;(displayn "atom=" tem)
+        ;              (if (equal? tem exp) env #f)  )
+        ((pair? tem)  ;(displayn "pair=" tem)
+                      (if (pair? exp) 
+                          (match (cdr tem) 
+                                 (cdr exp) 
+                                 (match (car tem) (car exp) env)  )
+                          #f  ))
+        (else         ;(displayn "unknown list element") 
+                      #f)  )
+))
+
+
+(match '() '() '())
+(match '(1) '() '())
+(match '() '(1) '())
+(match '(1) '(1) '())
+(match '(1) '(2) '())
+(match '(1 2 "3" (4 #\5 () 7) (8)) '(1 2 "3" (4 #\5 () 7) (8)) '())
+(match '(?x) '(2) '())
+(match '(1 ?x) '(1 ("this is x")) '())
+(match '(1 ?x (?x 2)) '(1 ("x") (("x") 2)) '())
+(match '(1 ?x (?x 2)) '(1 ("x") (("y") 2)) '())
+
+(match '(define (?name . ?args) ?body) 
+       '(define (inc x) (+ x 1)) 
+       '()  )
+
+(match '?nil '() '())
+;(exit 1)
 
 (define make-exp (lambda (tem env)
-  ;(display "env=") (print env) (newline)
+  ;(displayn "make-exp  tem=[" tem "]  env=[" env "]")
   (cond 
         ((null? tem) '())
         
-        ((symbol? tem) 
-         ;(display "symbol=") (print tem) (newline)
-         (define kvp (alist-assoc tem env))
-         ;(display "kvp=") (print kvp) (newline)
-         (if kvp                        ; symbol found in env
-             (eval-macro (kvp-val kvp))
-             tem)  )
+        ((var? tem)  ;(displayn "symbol=" tem)
+                     (eval-macro (alist-lookup tem env))
+         ;(define kvp (alist-assoc-fail tem env #f))
+         ;(display "kvp=" kvp)
+         ;(if kvp                        ; symbol found in env
+         ;    (eval-macro (kvp-val kvp))
+         ;    tem)
+           )
              
-        ((atom? tem) 
-         ;(display "atom=") (print tem) (newline)
-         tem  )
+        ((atom? tem)  ;(displayn "atom=" tem)
+                      tem  )
         
-        ((pair? tem) 
-         ;(display "pair=") (print tem) (newline)
+        ((pair? tem)  ;(displayn "pair=" tem)
          ; do i need eval-macro here as well?
          (cons 
            (eval-macro (make-exp (car tem) env)) 
@@ -197,93 +192,69 @@ match
         (else (display "unknown\n") #f)  )
 ))
 
-(match '() '() '((result . match)))
-(match '(1) '() '((result . FAIL)))
-(match '() '(1) '((result . FAIL)))
-(match '(1) '(1) '((result . match)))
-(match '(1) '(2) '((result . FAIL)))
-(match '(1 2 "3" (4 #\5 () 7) (8)) '(1 2 "3" (4 #\5 () 7) (8)) '((result . match)))
-(match '(x) '(2) '((x . *UNDEF*) (result . match)))
-(match '(1 x) '(1 ("this is x")) '((x . *UNDEF*) (result . match)))
-(match '(1 x (x 2)) '(1 ("x") (("x") 2)) '((x . *UNDEF*)(result . match)))
-(match '(1 x (x 2)) '(1 ("x") (("y") 2)) '((x . *UNDEF*)(result . FAIL)))
-
-(match '(define (_name . _args) _body) 
-       '(define (inc x) (+ x 1)) 
-       '((_name . *UNDEF*) (_args . *UNDEF*) (_body . *UNDEF*))  )
-
-(match '<nil> '() '((<nil> . nil) (result . match)))
-
 (define transformers '(
-  (nil () ())
-  ((define (<n> . <a>) . <b>) (define <n> (lambda . <a>) . <b>) (<n> <a> <b>)) 
-  ((begin . <b>) (progn . <b>) (<b>)) 
-  ((inc <a>) (+ <a> 1) (<a>)) 
-  ((dec <a>) (1 <a> 1) (<a>)) 
-  ((not <e>) (if <e> #f #t) (<e>))
-  ((and) #t ())  
-  ((and <e>) <e> (<e>)) 
-  ((and <e1> . <e2>) (if <e1> (and . <e2>) #f) (<e1> <e2>)) 
-  ((or) #f ())  
-  ((or <e>) <e> (<e>)) 
-  ((or <e1> . <e2>) (if <e1> #t (or . <e2>)) (<e1> <e2>)) 
-  ((let  ((<f> <e>)) . <b>) ((lambda (<f>) . <b>) <e>) (<f> <e> <b>))
-  ((let* ((<f> <e>)) . <b>) ((lambda (<f>) . <b>) <e>) (<f> <e> <b>))
-  ((let* ((<f> <e>) . <r>) . <b>) ((lambda (<f>) (let* <r> . <b>)) <e>) (<f> <e> <b> <r>))
-  ((cons-stream <a> <b>) (cons <a> (delay <b>)) (<a> <b>))
+  ;(nil ())
+  ((define (?n . ?a) . ?b) (define ?n (lambda . ?a) . ?b)) 
+  ((begin . ?b) (progn . ?b)) 
+  ((inc ?a) (+ ?a 1)) 
+  ((dec ?a) (1 ?a 1)) 
+  ((not ?e) (if ?e #f #t))
+  ((and) #t)  
+  ((and ?e) ?e) 
+  ((and ?e1 . ?e2) (if ?e1 (and . ?e2) #f)) 
+  ((or) #f)  
+  ((or ?e) ?e) 
+  ((or ?e1 . ?e2) (if ?e1 #t (or . ?e2))) 
+  ((let  ((?f ?e)) . ?b) ((lambda (?f) . ?b) ?e))
+  ((let* ((?f ?e)) . ?b) ((lambda (?f) . ?b) ?e))
+  ((let* ((?f ?e) . r) . ?b) ((lambda (?f) (let* ?r . ?b)) ?e))
+  ((cons-stream ?a ?b) (cons ?a (delay ?b)))
 
 ))
 
-(define make-trans-env (lambda (env)
-  (if (null? env) 
-      '() 
-      (cons 
-        (make-kvp (car env) '*UNDEF*) 
-        (make-trans-env (cdr env))  ))  ))
-
-;; rescan expression for macro expansion
-
-;(define eval-macro-scan (lambda (exp)
-;  ;(display "ems exp=") (print exp) (newline)
-;  (cond 
-;        ((null? exp) '())
-;        (else (eval-macro-worker (car exp) transformers))  )))
+;(define make-trans-env (lambda (env)
+;  (if (null? env) 
+;      '() 
+;      (cons 
+;        (make-kvp (car env) '*UNDEF*) 
+;        (make-trans-env (cdr env))  ))  ))
 
 (define eval-macro-worker (lambda (exp trans)
-  ;(peek "emw exp=" exp)
+  ;(displayn "emw exp=" exp)
   (cond ((null? trans) exp)
-        (else
-          ;(display "emw trans=") (print trans) (newline)
-          ;(display "emw tem=") (print (caar trans)) (newline)
-          (define env (match (caar trans) exp (make-trans-env (caddar trans))))
-          ;(display "emw env=") (print env) (newline)
+        ((atom? exp) exp)
+        ((not (eq? (caaar trans) (car exp))) (eval-macro-worker exp (cdr trans)))
+        (else  ; 
+          ;(displayn "emw trans=" trans)
+          ;(displayn "emw tem=" (caar trans))
+          ;(define env (match (caar trans) exp (make-trans-env (caddar trans))))
+          (define env (match (caar trans) exp '()))
+          ;(displayn "emw env=" env)
           (if env 
               (progn
-                ;(display "Transform ") (print exp) (display " -> ")
+                ;(displayn "Transform " exp " -> ")
                 (define nexp (make-exp (cadar trans) env))
                 ;(print nexp) (newline)
-                ;(eval-macro-worker nexp transformers) ) 
-                nexp ) 
+                (eval-macro-worker nexp transformers) 
+                ;nexp 
+              ) 
               (progn
                 ;(display "Try next transformer ") (print (cdr trans)) (newline)
-                (eval-macro-worker exp (cdr trans))  ; try next transform
-              )   )  ))))
-;;;; FIXME needs to be recursive
-
+                (eval-macro-worker exp (cdr trans))  ))  ; try next transform
+            )              )  ))
+            
 (define eval-macro (lambda (exp) (eval-macro-worker exp transformers)))
+;(define eval-macro (lambda (exp) exp))
 
 (define ?count 0)  ;; count errors
 
 (define ? (lambda (expect exp)
-  ;(exit 3)
-  ;(display exp)
-  ;(display expect)
   (displayn "test exp=" exp "->" expect)
   (define result (eval1 exp))  ;; FIXME: this is bad
   ;(let ((result (eval1 exp)))
     (if (equal? result expect)
       (progn
-        (display "  pass")
+        (display "  pass\n")
         #t  )
       (progn
         (set! ?count (+ ?count 1))
@@ -292,21 +263,31 @@ match
   ;)   
 ))
 
-(? 5 '(+ 2 3))
-(- 2 3)
-;(list nil 1 2 nil 3)
-(exit 1)
-;(inc 3)
-;(begin 1 (inc 2) (+ 2 3))
-;(and)
-;(and 2)
-;(and (= 1 2) (= 3 4) (= 5 6))
+;(? 5 '(+ 2 3))
+;(? 5 '(+ 2 3 1))
+; org (don't process atoms) (remove nil () ()) (match tag of list) (no macro) (macro)
+;     (alist-assoc-fail) (eliminate assoc defines) | SICP-like version
+;     SICP version with eq instead of equal
+;     SICP version with equal
+1  ; 2580 23 232 23 8 23 23 | 23 23
++  ; 2580 23 23 23 8 23 23 | 23 23
+(+)  ; 9978 (+7398) 4928 4808 823 32 823 823 | 823 823
+(+ 1)  ; 12582 (+2604) 4975 4855 870 64 870 870 | 870 870
+(+ 1 2)  ; 15186 (+2604) 5022 4902 917 96 917 917 | 917 917
+(+ 1 2 3)  ; 17790 (+2604) 5069 4949 964 128 964 964 | 964 964
+(+ 1 2 3 4)  ; 20394 (+2604) 5116 4996 1011 160 1011 1011 | 1011 1011
+
+(inc 3)  ; ... 3360 3378 | 3299 3253
+(begin 1 (inc 2) (+ 2 3))  ; ... 7270 7306 | 7132 7046
+(and)  ; ... 586 589 | 565 525
+(and 2)  ; ... 1129 1144 | 1052 978
+(and (= 1 2) (= 3 4) (= 5 6))  ; ... 21921 22050 | 21282 20992
 ;(or)
 ;(or 2)
 ;(or (= 1 2) (= 3 4) (= 5 6))
 ;(let ((x 3)) (+ x 3))
-(let* ((x 3)) (+ x 3))
-(let* ((x 3) (y 4)) (+ x y))
+(let* ((x 3)) (+ x 3))  ; ... 10436 10496 | 10261 10197
+(let* ((x 3) (y 4)) (+ x y))  ; ... 23892 20478 | died died
 
 (exit 1)
 

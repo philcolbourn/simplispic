@@ -7,13 +7,13 @@
 ;; alias primitives with nicer names
 ;(define + iadd)
 (define + (lambda args
-  (define +worker (lambda (args)
-    (if (null? args) 
-        0 
-        (iadd (car args) 
-              (+worker (cdr args))  ))))
-  (+worker args)  ))
-(define - isub)
+  (if (null? args) 
+      0 
+      (iadd (car args) 
+            (apply + (cdr args))  ))))
+;(define - isub)
+(define - (lambda args
+  (if (null? args) 0 (isub (car args) (apply + (cdr args))))  ))
 (define * imul)
 (define / idiv)
 (define modulo imod)
@@ -38,6 +38,11 @@
 (define string? stringp)
 (define set-car! set_car)
 (define set-cdr! set_cdr)
+(define symbol->string sym_to_str)
+(define string-ref str_ref)
+(define symbol-ref str_ref)
+(define string-length string_length)
+(define symbol-length string_length)
 
 (define caar (lambda (a) (car (car a))) )
 (define cadr (lambda (a) (car (cdr a))) )
@@ -91,6 +96,19 @@
 
 (define make-lambda (lambda (form body)
   (cons 'lambda (cons form body))  ))
+
+(define x '(1 2))
+(+ . x)
+(+ . (1 2 3))
+(- . x)
+(- . (1 2 3))
+(string-ref "abc" 1)
+(symbol-ref 'abc 0)
+(symbol-ref 'abc 1)
+(symbol-ref 'abc 2)
+(string-length "abcdefg")
+(string-length "ab")
+;(exit 1)
 
 ; load macros
 

@@ -38,25 +38,22 @@ int          get_val( ATOM a );
 int is_eq( ATOM a,ATOM b ){
   return a.atm==b.atm;
 }
-/*
- NIL  par  atom  pair  list
-  0    0    X     X     X
-  0    1    0     1    cdr=par
-  1    0    X     0     X
-  1    1    1     0     1
-*/
+
 int is_pair( ATOM p ){
-  return is_par(p) && ( ! is_null(p) );  // how did I make this mistake?
+  //when ()=NIL return is_par(p) && ( ! is_null(p) );  // how did I make this mistake?
+  return is_par(p);
 }
 
 // FIXME: scheme says a list must have cdr=nil or cdr=pair
 int is_list( ATOM p ){
-  return is_par(p);
+  //return is_par(p);
   //return is_par(p) && is_pair( cdr(p) );  // breaks pc-list
+  return is_null(p) || ( is_par(p) && is_list( cdr(p) ) );
 }
 
 int is_atom( ATOM p ){
-  return is_null(p) || ( ! is_par(p) );
+  //when ()=NIL return is_null(p) || ( ! is_par(p) );
+  return ! is_par(p);
 }
 
 int is_symbol( ATOM a ){ return is_sym(a); }

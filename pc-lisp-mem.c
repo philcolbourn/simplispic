@@ -50,27 +50,28 @@ extern ATOM   freePairs;
 extern ATOM   usedPairs;
 extern ATOM   lastUsedPair;
 
-/*
-// Symbols
-typedef struct{
-  char name[SYM_LEN];
-  int len;
-} SYMBOL;
-extern SYMBOL symbols[SYM_SIZE];
-extern int    freeSym;
-void symbol_init();
-*/
 
-// Strings
+// Strings and Symbols
 typedef struct{
   char *text;
   int len;
   int hash;
+  int ref;
 } STRING;
+
 extern STRING strings[STR_SIZE];
 extern int     freeStr;
 void string_init();
+ATOM sym_to_str( ATOM sym );
+int get_str_len( ATOM str );
+ATOM str_ref( ATOM str,ATOM num );
 
+/*
+typedef union{
+  struct{ unsigned int strtag:3; unsigned int strlen:2; char str[3]; };
+  int atm;
+} SHORTSTR;
+*/
 
 enum TAGS {PAR=0, MEM=0, BAK=0, NUM=1, SYM=2, RE3=3, CHR=4, RE5=5, STR=6, RE7=7, CON=12, PFN=29};
 
@@ -113,8 +114,8 @@ MAKE_ATOM_ADT( bak,BAK );
 
 //#define ERR          MAKE_CON( -99)     // error value
 
-#define NIL          MAKE_PAR( 0 )     // NIL is an empty list - int=0
-//#define FAL          NIL
+#define MEM0         MAKE_PAR( 0 )
+#define NIL          MAKE_CON( -1 )     // NIL is an empty list - int=0
 #define FAL          MAKE_CON( 0 )     // !=0
 #define TRU          MAKE_CON( 1 )     // !=0
 
@@ -123,6 +124,7 @@ MAKE_ATOM_ADT( bak,BAK );
 #define ASSERT_PAIR( par )                                       \
   EXITIF( ! is_par( par ),"ASSERT_PAIR! requires a pair",par );  \
   EXITIF( get_val( par )<0,"Negative pair index",par );          \
+  EXITIF( is_null( par ),"Pair is NIL",par );                    \
   EXITIF( get_val( par )>=SIZE,"Pair index > SIZE",par );
 
 #define PAIRS( p ) pairs[ get_par(p) ]
@@ -214,37 +216,51 @@ ATOM   lastUsedPair;
 
 // type storage
 
-//SYMBOL symbols[SYM_SIZE];
 STRING strings[STR_SIZE];
 
 // free storage indexes - by convention reserve [0]
 
-//int    freeSym = 1;
 int    freeStr = 1;
-int    freeFun = 1;
-
-/*
-void symbol_init(){
-  int i;
-  for ( i=0;i<SYM_SIZE;i++ ){
-    symbols[i].name[0] = 0;
-    //symbols[i].len = 0;
-    _strcpy( symbols[i].name,"UNDEF SYM",10 );
-    symbols[i].len = 9;
-  }
-}
-*/
+//int    freeFun = 1;
 
 void string_init(){
   int i;
   for ( i=0;i<STR_SIZE;i++ ){
     strings[i].text = "UNDEF STR";
     strings[i].len  = 9;
-    sar[i].val      = 0;
+    strings[i].hash = 0;
+    strings[i].ref  = 0;
+    //sar[i].val      = 0;
   }
   strings[ 0 ].text = malloc( STR_LEN );
+  strings[ 0 ].len  = 0;
+  strings[ 0 ].ref  = 1; // never gc?
   EXITIF( strings[ 0 ].text==NULL,"malloc returned NULL!",NIL );
-  strings[ freeStr ].len = 0;
+  strings[ freeStr ].len = 0;  // FIXME: why?
+}
+
+ATOM sym_to_str( ATOM sym ){
+  return make_str( get_sym(sym) );
+}
+
+inline int get_str_len( ATOM str ){
+  int s = get_str(str);
+  if ( s<=0 ) return (-s) >> (3*8);
+  return strings[ s ].len;
+
+}
+
+ATOM str_ref( ATOM str,ATOM ref ){
+  PEEK( "",str );
+  PEEK( "",ref );
+  EXITIF( get_num(ref)<0,"Negative String ref",ref );
+  EXITIF( get_num(ref)>=get_str_len(str),"String ref out of range",ref );
+  int s = get_str(str);
+  if ( s<=0 ){
+    s = -s;
+    return make_chr( ((char *)&s)[ get_num(ref) ] );
+  }
+  return make_chr( strings[ s ].text[ get_num(ref) ] );
 }
 
 /*
@@ -262,7 +278,8 @@ ATOM _free_unlink(){
   _freePairCount--;
   ATOM p = freePairs;             // next free pair 
   freePairs = _mem( p );          // unlink from free list
-  _set_mem( p,NIL );        // optional for now
+  //_set_mem( p,NIL );        // optional for now
+  _set_mem( p,MEM0 );        // optional for now
   return p;
 }
 
@@ -296,7 +313,8 @@ ATOM _used_append( ATOM p ){  // append p after usedPairs
 
 ATOM _remove_next_free(){
   ATOM p = _free_unlink();          // next free pair 
-  RETNIF( is_null( freePairs ),"All pairs are used!",freePairs );
+  //RETNIF( is_null( freePairs ),"All pairs are used!",freePairs );
+  RETNIF( is_eq( freePairs,MEM0 ),"All pairs are used!",NIL );
   _used_append( p );
   return p;
 }

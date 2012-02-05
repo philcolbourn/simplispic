@@ -110,17 +110,35 @@ int    nextc             = 0;
 int    next2c            = 0;
 char  *reads             = NULL;  // reading from this string
 char  *readp             = NULL;  // reading cursor for reads
-ATOM    kw_quote, kw_lambda, kw_closure;
-ATOM    kw_let, kw_let_star, kw_letrec;
-ATOM    kw_primitive, kw_exit;
-ATOM    kw_define, kw_set;
-ATOM    kw_read, kw_load, kw_eval, kw_eval1, kw_eval_macro, kw_apply;
-ATOM    kw_if, kw_cond;
-ATOM    kw_progn, kw_begin, kw_delay ,kw_force;
-ATOM    kw_display, kw_print;
-ATOM    kw_cons, kw_list, kw_cons_stream;
+ATOM   kw_quote          = NIL;
+ATOM   kw_lambda         = NIL;
+ATOM   kw_closure        = NIL;
+//ATOM   kw_let            = NIL;
+//ATOM   kw_let_star       = NIL;
+//ATOM   kw_letrec         = NIL;
+ATOM   kw_primitive      = NIL;
+ATOM   kw_exit           = NIL;
+ATOM   kw_define         = NIL;
+ATOM   kw_set            = NIL;
+ATOM   kw_read           = NIL;
+ATOM   kw_load           = NIL;
+ATOM   kw_eval           = NIL;
+ATOM   kw_eval1          = NIL;
+ATOM   kw_eval_macro     = NIL;
+ATOM   kw_apply          = NIL;
+ATOM   kw_if             = NIL;
+ATOM   kw_cond           = NIL;
+ATOM   kw_progn          = NIL;
+//ATOM   kw_begin          = NIL;
+ATOM   kw_delay          = NIL;
+//ATOM   kw_force          = NIL;
+ATOM   kw_display        = NIL;
+ATOM   kw_print          = NIL;
+ATOM   kw_cons           = NIL;
+ATOM   kw_list           = NIL;
+//ATOM   kw_cons_stream    = NIL;
 
-ATOM    tag_env;
+ATOM   tag_env           = NIL;
  
 // readString sets these to readchString and ungetchString
 static int  (*readch)()         = readchNormal;
@@ -198,7 +216,8 @@ ATOM read_token(){
   int c;
   SKIP:
   c = getch();
-  //fputc( c,stderr );        // print leading token character
+  //
+  fputc( c,stderr );        // print leading token character
   if ( c==EOF )            return make_chr(EOF);
   if ( c=='(' )            return make_chr(c);
   if ( c<=SP  )            goto   SKIP;            // skip whitespace
@@ -261,6 +280,8 @@ ATOM let_star_to_let( ATOM kvps,ATOM body ){
   return res;
 }
 */
+
+/*
 ATOM let_star_to_let( ATOM kvps,ATOM body ){
   if ( is_null( cdr(kvps) ) ){
     ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
@@ -279,6 +300,8 @@ ATOM let_star_to_let( ATOM kvps,ATOM body ){
   //PEEK( "",res );
   return res;
 }
+*/
+
 /*
  (define-syntax letrec 
    (syntax-rules () 
@@ -290,6 +313,7 @@ ATOM let_star_to_let( ATOM kvps,ATOM body ){
 (letrec ((v i) ...) . body)
   -> (let () (define v i) ... (let () . body))
 */
+/*
 // ((x 1) (y 2) body) -> ((define x 1) (define y 2) (let () body))
 ATOM kvps_to_defines( ATOM kvps,ATOM body ){
   if ( is_null( kvps ) )
@@ -297,6 +321,7 @@ ATOM kvps_to_defines( ATOM kvps,ATOM body ){
   ATOM def = cons( kw_define,car( kvps));
   return cons( def,kvps_to_defines( cdr(kvps),body ) );
 }          
+*/
 /*
 (define (define exp)
   (if (match-taglist exp 'define)
@@ -310,22 +335,24 @@ ATOM kvps_to_defines( ATOM kvps,ATOM body ){
 )
 */
 ATOM eval_macros( ATOM exp ){
-  PEEK( "",exp );
+  //PEEK( "",exp );
  
   ATOM kvp = assoc( kw_eval_macro,gEnv );
+  //PEEK( "",kvp );
   if ( ! is_eq( kvp,FAL ) ){  // macro system not booted yet
   // (eval-macro '(inc 3))
     ATOM nexp = cons( kw_eval_macro,cons( cons( kw_quote,cons( exp,NIL ) ),NIL ) );
     //PEEK( "",exp );
     //PEEK( "",nexp );
     ATOM res = eval( nexp,gEnv );
-    PEEK( "",res );
+    //PEEK( "",res );
     //_ms( gEnv );  // but res is not in env so it gets swept up
     //exit(1);
     return res;
   }
   PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
   return exp;
+/*
   // (define (<name> <form>) <body>) -> (define <name> (lambda (<form>) <body>))
   if ( match_taglist( exp,kw_define ) ){
     if ( is_list( _2ND( exp ) ) ){
@@ -341,6 +368,8 @@ ATOM eval_macros( ATOM exp ){
     }
     //peek( "eval_macro: lst",lst );
   }
+*/
+/*
   // (let ((x 1) (y 2)) <body>) -> ((lambda (x y) <body>) 1 2)
   if ( match_taglist( exp,kw_let ) ){
     //if ( is_alist( _2ND(exp) ) ){
@@ -362,11 +391,13 @@ ATOM eval_macros( ATOM exp ){
     //}
     //peek( "eval_macro: lst",lst );
   }
+*/
 /*
 (let* ((x 1) (y 2)) <body>) -> (let ((x 1)) (let ((y 2)) <body>))
 -> (let ((x 1)) ((lambda (y) <body>) 2))
 -> ((lambda (x) ((lambda (y) <body>) 2)) 1)
 */
+/*
   if ( match_taglist( exp,kw_let_star ) ){
     //if ( is_alist( _2ND(exp) ) ){
       //PEEK( "found let*",exp );
@@ -377,6 +408,7 @@ ATOM eval_macros( ATOM exp ){
     //}
     //PEEK( "bad let*",exp );
   }
+*/
 /*
 (letrec ((x 1) (y 2)) <body>)
   -> (let ()
@@ -390,6 +422,7 @@ ATOM kvps_to_defines( ATOM kvps,ATOM body ){
   return cons( def,kvps_to_defines( cdr(kvps),body ) );
 }          
 */
+/*
   if ( match_taglist( exp,kw_letrec ) ){
     //PEEK( "found letrec",exp );
     ATOM kvps = _2ND( exp );
@@ -416,6 +449,7 @@ ATOM kvps_to_defines( ATOM kvps,ATOM body ){
     ATOM res = cons( kw_progn,body );
     return res;
   }
+*/
 //  if ( is_cons_stream( exp ) ){           // exp = (cons a b)
 //    ATOM a = eval( _2ND(exp),env );  // (eval a)
 //    ATOM b = make_proc( make_lambda( NIL,_3RD(exp) ),env );  // (eval b)

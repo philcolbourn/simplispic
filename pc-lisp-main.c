@@ -151,8 +151,11 @@ void boot(){
     //strings[i]         = "UNDEF STR";
     primFns[i]         = _bad_primative_fn;
     //sar[i].val         = 0;
+    //if ( i==1 ) exit(1);
   }
-  usedPairs = make_par(0);               // [0] is used from begining
+  //_set_mem( make_par(i-1), NIL );  // last one -> NIL, not make_mem(0)
+  //exit(1);
+  usedPairs = MEM0;               // [0] is used from begining
   _set_mem( usedPairs,usedPairs );  // make circular
   _set_bak( usedPairs,usedPairs );
   //recycleSweeper = usedPairs;
@@ -168,7 +171,8 @@ void boot(){
   lastUsedPair = gEnv;  // hack?
   _mem_print_used_pairs( "gEnv",gEnv,_global_save );
   //exit(1);
-  _set_car( usedPairs,readString( "\"*used pairs*\"" ) );
+  // can't do this now with distinst NIL
+  //_set_car( usedPairs,readString( "\"*used pairs*\"" ) );
   //_cm_check_mem();
   //exit(1);
 /*
@@ -195,11 +199,12 @@ void boot(){
 
   fputs( "Create keyword symbols...\n",stderr );
   kw_quote       = readString( "quote"       );  
+  //exit(1);
   kw_lambda      = readString( "lambda"      );  
   kw_closure     = readString( "closure"     );  
-  kw_let         = readString( "let"         );  
-  kw_let_star    = readString( "let*"        );  
-  kw_letrec      = readString( "letrec"      );  
+  //kw_let         = readString( "let"         );  
+  //kw_let_star    = readString( "let*"        );  
+  //kw_letrec      = readString( "letrec"      );  
   kw_primitive   = readString( "primitive"   );
   kw_define      = readString( "define"      );
   kw_set         = readString( "set!"        );
@@ -214,9 +219,9 @@ void boot(){
   kw_cond        = readString( "cond"        );
   kw_delay       = readString( "delay"       );  
   kw_progn       = readString( "progn"       );
-  kw_begin       = readString( "begin"       );
+  //kw_begin       = readString( "begin"       );
   kw_cons        = readString( "cons"        );
-  kw_cons_stream = readString( "cons-stream" );
+  //kw_cons_stream = readString( "cons-stream" );
   kw_list        = readString( "list"        );
 
   tag_env        = readString( "env"         );
@@ -270,6 +275,9 @@ void boot(){
   REGISTER_PRIMITIVES_1( 39,symbolp   );
   REGISTER_PRIMITIVES_1( 40,constantp   );
   REGISTER_PRIMITIVES_1( 41,stringp   );
+  REGISTER_PRIMITIVES_1( 42,sym_to_str   );
+  REGISTER_PRIMITIVES_2( 43,str_ref   );
+  REGISTER_PRIMITIVES_1( 44,string_length   );
   
   fputs( "Booted.\n",stderr );
   //KEEP3(gEnv);  // FAILS
@@ -439,8 +447,8 @@ ASSOC2:
 */
 
 ATOM evallst( ATOM lst,ATOM env ){
-  //fprintf(stderr,"."     );
   if ( is_null(lst) ) return NIL; //RETURN( NIL );
+  if ( is_atom(lst) ) return eval( lst,env ); // added for (fn . arglist)
   ATOM this = eval( car(lst),env );
   ATOM rest = evallst( cdr(lst),env );
   ATOM res = cons( this,rest );
@@ -451,19 +459,13 @@ ATOM evallst( ATOM lst,ATOM env ){
 // need to specially make defined and set! pairs for gc
 
 ATOM evalseq( ATOM seq,ATOM env ){
-  //SYM_PEEK( "----------start",seq );
   if ( is_null(seq) )  return NIL;  // r4rs test bug 
   if ( is_null( cdr(seq) ) ){
-    //PEEK( "last",car(seq) );
     ATOM res = eval( car(seq),env );
-    //PEEK( "last",res );
     return res;
   }
   ATOM ignore = eval( car(seq),env );  // ignore result
-  //SYM_PEEK( "mid",ignore );
-  //SYM_PEEK( "rest",cdr(seq) );
   ATOM res = evalseq( cdr(seq),env );
-  //SYM_PEEK( "rest",res );
   return res;
 }
 /*
@@ -534,7 +536,7 @@ int loop=0;
 ATOM eval( ATOM exp,ATOM env ){
   ATOM e;
   //display( exp );
-  PEEK( "**********",exp );
+  //PEEK( "**********",exp );
   //PEEK( "**********",env );
   //loop++;
   if ( is_self_eval(exp) ) return exp;
@@ -699,121 +701,93 @@ ATOM apply(ATOM proc, ATOM args){  // ((lambda (x) (car x)) env .. G)
   EXIT( "Unknown",proc );
 }
 
+int size( ATOM a ){
+  int s = 0;
+  if ( is_eq( a,gEnv ) )  return 0;  // dont loop
+  if ( ! is_pair(a) )  return 0;
+  //PEEK( "",a );
+  if ( is_eq( car(a),tag_env ) )  return 1;  // dont process environments
+  return 1 + size( car(a) ) + size( cdr(a) );
+}
+
 ATOM _global_save;
+int _prevMaxCount = 0;
 
 ATOM repl(){                            // read eval print loop
   ATOM ret;  // return value
   fprintf( stderr,"\nStart REPL...\n" );
-  while TRUE{            // read here
+  while TRUE{
+    int _used = _usedPairCount;
     GLOBAL_MARK3;
-    //PEEK( "1",NIL );
     ATOM exp = read();
-    //PEEK( "2",exp );
     if ( is_eq( exp,END ) ){
       fputs( "EOF\n", stderr );
       break;
     }
-    ////fputs( "========================================\n", stderr );
+    fputs( "========================================\n", stderr );
     printa( exp );
     puts( "" );
     //PEEK( "Env  : ",gEnv );
-    ////PEEK( "Read: ",exp );
-    //peek( "Read : ",exp );
-    ATOM r = eval( exp,gEnv );
+    PEEK( "Read: ",exp );
+    ATOM ret = eval( exp,gEnv );
     //fputs( "Print: ", stderr );
-    //PEEK( "3",r );
-
-    /* logic here is that only (define ...) results in new pairs added
-       to environment so only check these
-       ah! but adding (load "filename") may add many things to gEnv
-       KEEP3( gEnv ) should work here but it is wasteful since
-       if eval calls repl, repl has already processed each new define
-       so it should be able to pass back an atom that says it 'i have done that'
-       it also should end up elegent
-       what if MARK3 was a global? 
-    */
-    //fputs( "A",stderr );
-/* FIXME: delete
-    if ( match_taglist( r,kw_define )){
-      //fputs( "DEF",stderr );
-      ret = caadr(r);
-      printa( ret );  // just print name of variable not whole expression
-      peek( "Define: ",ret );
-      //GLOBAL_KEEP3( cdr(r) );  // keep cdr of (define ...)      
-    }
-*/
-/* FIXME: delete
-   else if ( match_taglist( r,kw_set )){  // (set! var val)
-      PEEK( "set1",r);
-      ret = cadr(r);
-      PEEK( "set2",r);
-      printa( ret );  // just print name of variable not whole expression
-      peek( "Set!: ",ret );
-      //GLOBAL_KEEP3( cddr(r) );  // keep val
-    }
-*/
-/* FIXME: delete
-    else if ( is_taglist( r,kw_load )){
-      ret = CAADR(r);
-      //printa( ret );  // just print name of variable not whole expression
-      peek( "Print: ",ret );
-      GLOBAL_KEEP3( CDR(r) );  // keep cdr of (load ...)      
-    }
-*/
-// FIXME: delete
-//   else{
-      ret = r;
-      //PEEK( "ret",r );
-      printa( ret );                        // this is read-eval-print bit
-      //PEEK( "Print:",ret );
-      //_cm_check_mem();
-      GLOBAL_KEEP3( NIL );
-      if ( _usedPairMaxCount == _usedPairCount){
-        fprintf( stderr,"\n" );
-        fprintf( stderr,"      Free=%d\n",_freePairCount  );
-        fprintf( stderr,"      Used=%d\n",_usedPairCount  );
-        fprintf( stderr,"  Max Used=%d\n",_usedPairMaxCount  );
-        fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
-        fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
-        fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
-        fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
+    printa( ret );
+    PEEK( "Print:",ret );
+    //_cm_check_mem();
+    fprintf( stderr,"Result size = %d\n",size( ret ) );
+    if ( is_symbol( ret ) ){
+      PEEK( "symbol ",ret );
+      ATOM kvp = assoc( ret,gEnv );
+      PEEK( "",kvp );
+      if ( ! is_eq( kvp,FAL ) ){
+        PEEK( "found ",kvp );
+        fprintf( stderr,"Result true size = %d\n",size( kvp ) );
       }
-      //_cm_check_mem();
-      //PEEK( "X",ret );
-      // FIXME: maybe keep first kvp in env? and pair?
-//    }
-    //GLOBAL_KEEP3( gEnv );
-    //exit(1);
-    //PEEK( "4",NIL );
+    }
+
+    GLOBAL_KEEP3( NIL );
+    int _deltaUsed = _usedPairCount-_used;
+    fprintf( stderr,"Pairs increased by %d\n",_deltaUsed );
+    _ms( gEnv );
+    _deltaUsed = _usedPairCount-_used;
+    fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
+    /*
+    if ( _usedPairMaxCount > _prevMaxCount){
+      fprintf( stderr,"Pairs increased by %d",_usedPairMaxCount-_prevMaxCount );
+      _prevMaxCount = _usedPairMaxCount;
+      fprinta( stderr,exp );
+      fprintf( stderr,"  ->  " );
+      fprinta( stderr,ret );
+      fprintf( stderr,"\n" );
+      //fprintf( stderr,"      Free=%d\n",_freePairCount  );
+      fprintf( stderr,"      Used=%d\n",_usedPairCount  );
+      fprintf( stderr,"  Max Used=%d\n",_usedPairMaxCount  );
+      fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
+      fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
+      fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
+      fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
+      fprintf( stderr,"Running GC...\n" );
+      _ms( gEnv );
+      fprintf( stderr,"      Used=%d\n",_usedPairCount  );
+      fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
+      fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
+      fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
+      fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
+    }
+    */
+    //_cm_check_mem();
     _ms( gEnv );
     //_cm_check_mem();
-    //PEEK( "5",NIL );
     puts( "" );
   }
-  //PEEK( "Before keep3",gEnv );
-  //GLOBAL_KEEP3( gEnv );  // FIXME: redundant now?
-  //_ms( gEnv );
-  //_cm_check_mem();
-  //_cm_check_mem_leak();
-  //PEEK( "After keep2",gEnv );
-  //PEEK( "return",gEnv );
   return ret;                             // return last thing
 }
 
-
 int main(){  // clang bug
-  //boot();  _test();
-//  fprintf( stderr,"0==0->%d  0==1->%d\n",(0==0),(0==1) );
-//  fprintf( stderr,"0 && 1->%d  0 && 2->%d\n",(0&&1),(0&&2) );
-//  fprintf( stderr,"0 || 1->%d  0 || 2->%d\n",(0||1),(0||2) );
-//  fprintf( stderr,"1 && 1->%d  1 && 2->%d\n",(1&&1),(1&&2) );
-//  fprintf( stderr,"1 || 1->%d  1 || 2->%d\n",(1||1),(1||2) );
-//  fprintf( stderr,"not 0->%d  not 1->%d  not 2->%d\n",(!0),(!1),(!2) );
-//  exit(1);
   fprintf( stderr,"\n\n\n\n\n\n\n\n\n\nStart\n" );
   boot();
   in = stdin;
-  setvbuf(in, buf, _IOLBF, BUF_SIZE);  // make stdin use my buffer
+  setvbuf( in,buf,_IOLBF,BUF_SIZE );  // make stdin use my buffer
   repl();
   //PEEK( "",gEnv );
   /*
@@ -830,7 +804,6 @@ int main(){  // clang bug
   fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
   fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
   fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
-  //fprintf( stderr,"Symbols   =%d\n",freeSym );
   fprintf( stderr,"Strings   =%d\n",freeStr );
   //fprintf( stderr,"  Recycled=%d\n",_recycleStrCount );
   return 0;
@@ -838,5 +811,4 @@ int main(){  // clang bug
 
 #endif
 #endif
-
 

@@ -279,7 +279,8 @@ void _ms_sweep_all_pairs( int m ){
   //PEEK( "start",NIL );
   ATOM i = _mem( usedPairs );
   ATOM p = i;
-  while ( ! is_null( p ) ){
+  //while ( ! is_null( p ) ){
+  while ( ! is_eq( p,MEM0 ) ){
     i = _mem( p );
     if ( _ref(p)==0 ){
       _sweepPairCount++;

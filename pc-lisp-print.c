@@ -114,15 +114,16 @@ ATOM fprintSTR( FILE *f,ATOM a,int fmt ){
   if ( s<=0 ){  // "" is 0
     s = -s;
     int i = s >> (3*8);
-    fprintf( f,printFormat[ STR ][ fmt ],i,&s );
+    fprintf( f,printFormat[ get_tag(a) ][ fmt ],i,&s );
   }
   else{
-    fprintf( f,printFormat[ STR ][ fmt ],strings[ s ].len,strings[ s ].text ); 
+    fprintf( f,printFormat[ get_tag(a) ][ fmt ],strings[ s ].len,strings[ s ].text ); 
   }
   return a;
 }
 
 ATOM fprintCON( FILE *f,ATOM a,int fmt ){
+  if ( is_eq( a,NIL ) ){ fprintf( f,"()"         ); return a; }
   if ( is_eq( a,TRU ) ){ fprintf( f,"#t"         ); return a; }
   if ( is_eq( a,FAL ) ){ fprintf( f,"#f"         ); return a; }
   if ( is_eq( a,END ) ){ fprintf( f,"?END?"      ); return a; }
@@ -140,8 +141,9 @@ ATOM fprintCHR( FILE *f,ATOM a,int fmt ){
 }
 
 ATOM fprintPAR( FILE *f,ATOM a,char *lsep,int fmt ){
-  if ( is_eq( a,NIL ) ){ fprintf( f,"()"         ); return a; }
-  EXITIF( get_par(a)<=0,"Negative list index",a );
+  //if ( is_eq( a,NIL ) ){ fprintf( f,"()"         ); return a; }
+  //EXITIF( get_par(a)<=0,"Negative list index",a );
+  EXITIF( get_par(a)<0,"Negative list index",a );
   if ( is_lambda(a) ){  // (lambda (x) (car x) env G)
     fputs( "<",f ); 
     fprintp( f,a,SP,"",fmt );
@@ -161,25 +163,30 @@ ATOM fprintPAR( FILE *f,ATOM a,char *lsep,int fmt ){
   }
   fputs( lsep,f );  // separator between atoms and lists
   fputs( "(",f ); 
-  char buf[110]=""; // was "\0";
+  char buf[110] = ""; // was "\0";
   if ( lsep[0]>0 )  // if more than NUL, indent
-    snprintf( buf,99,"%s  %c",lsep,(char)0 );
-  fprintp( f,a,SP,buf,fmt );    fputs( ")",f ); 
+    snprintf( buf,99,"%s  ",lsep );
+    //snprintf( buf,99,"%s  \0",lsep );
+    //snprintf( buf,99,"%s  %c",lsep,(char)0 );
+  fprintp( f,a,SP,buf,fmt );
+  fputs( ")",f ); 
   return a; 
 }
+
+// FIXME: is a char a string also?
+// FIXME: add gc for strings - simple ref count should do nicely
+// FIXME: add a special character list string thingy
+    //{ fputc('"',f); fprintp( f,a,0  ); fputc('"',f); return; }
+    // old SYM fprintp( f,a,0 ); return;  // SYM
 
 ATOM fprinta1( FILE *f,ATOM a,char *lsep,int fmt ){
   switch ( get_tag(a) ){
   case CON:  return fprintCON( f,a,fmt );
   case CHR:  return fprintCHR( f,a,fmt );
-//  case STR: fprintf( f,"\"%s\"[%d]",strings[ get_str(a) ],sar[ get_str(a) ].gc  ); return;
   case STR:  return fprintSTR( f,a,fmt );
-  case SYM:  return fprintSTR( f,a,fmt );
-    //{ fputc('"',f); fprintp( f,a,0  ); fputc('"',f); return; }
-    // old SYM fprintp( f,a,0 ); return;  // SYM
-    
+  case SYM:  return fprintSTR( f,a,fmt );    
   case PAR:  return fprintPAR( f,a,lsep,fmt );
-  default:  
+  default:  // NUM, etc.
     fprintf( f,printFormat[ get_tag(a) ][ fmt ],get_val(a) );
   }
   return a;
