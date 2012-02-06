@@ -6,20 +6,18 @@
 ;; alias primitives with nicer names
 ;(define + iadd)
 (define + (lambda args
-  (if (null? args) 
-      0 
-      (iadd (car args) 
-            (apply + (cdr args))  ))))
+  (if (null? args) 0 (iadd (car args) (apply + (cdr args))  ))  ))
 ;(define - isub)
 (define - (lambda args
-  (if (null? args) 0 (isub (car args) (apply + (cdr args))))  ))
+  (if (null? args) 0 (isub (car args) (apply + (cdr args))  ))  ))
 (define * imul)
+; FIXME: do same for * and / etc.
 (define / idiv)
 (define modulo imod)
 (define % imod)
 (define eq? eqp)
 (define equal? equalp)
-(define list? listp)
+(define list? listp)  ; FIXME: can list? be written here?
 (define atom? atomp)
 (define pair? pairp)
 (define null? nullp)
@@ -84,9 +82,9 @@
 
 
 (define else #t)  ;; should be a keyword in cond
+; FIXME: is this needed now?
 (define not (lambda (b) (if b #f #t)) ) 
-(define zero? (lambda (x) (eq? x 0)) )
-(define boolean? (lambda (x) (or (eq? x #t) (eq? x #f)) ))
+(define zero? (lambda (x) (eq? x 0)) )  ; FIXME: make macro?
 (define list (lambda args) args)  ; is it this simple?
 (define match-taglist (lambda (lst tag)
   (if (not (pair? lst) ) 
@@ -113,21 +111,15 @@
 
 (load "pc-scheme.mac")
 
+; needs 'or'
+(define boolean? (lambda (x) (or (eq? x #t) (eq? x #f)) ))
+
+
 ; FIXME: this need to go after all RxRS is defined
 
 ;(define null-environment (cdddr (lambda () 12)))  ; (closure <proc> env G)
 ;null-environment
 
-;; old t and f
-;(define #t @1)  ;; define a symbol '#t' to be a special constant 
-;(define #f @0)  ;; define a symbol '#f' to be a special constant 
-;(define #f '())  ;; Lisp, not scheme
-;(define #t '#t)
-
-;; this seems a simple way to represent truth
-;(define #t (eq? 1 1))
-;(define #f (eq? 1 0))
-;(exit 1)
 ;; simplispic version of equal?
 (define _equal? (lambda (a b)
   (if (eq? a b) 
@@ -139,33 +131,6 @@
           #f  )  )  ))
 
 
-;;;;;;;;; test harness
-
-; (? expect expression)
-; eg (? 3 '(+ 1 2))
-
-(define ?count 0)  ;; count errors
-
-(define (? expect exp)
-  (disperr "exp=")
-  (printerr exp)
-  (printerr '\ ->\ )
-  (printerr expect)
-  (printerr '\ )
-  ;(define result (eval1 exp))  ;; FIXME: this is bad
-  (let ((result (eval1 exp)))
-    (if (equal? result expect)
-      (begin
-        (printerr 'pass\n)
-        #t  )
-      (begin
-        (set! ?count (+ ?count 1))
-        (printerr 'FAIL\ got\ )
-        (printerr result)
-        (printerr '\n)
-        (if (= ?count 5) (exit) #f )  )  )
-  )   
-)
 (? '#t '(eq? 1 1))
 ;boolean?
 (? '#t '(boolean? #t))
@@ -280,8 +245,11 @@ d
     (if (zero? k)
         x
         (list-tail (cdr x) (- k 1)))))
+list-tail
+
 
 (define (list-ref a n)
+  (displayn "list-ref a=" a "  n=" n)
   (if (= n 0)
       (car a)
       (list-ref (cdr a) (- n 1))  )  )
@@ -289,6 +257,7 @@ d
 (? 1 '(list-ref '(1 2 3) 0))
 (? 2 '(list-ref '(1 2 3) 1))
 (? 3 '(list-ref '(1 2 3) 2))
+(exit 1)
 
 (define make-promise
   (lambda (proc)
@@ -303,6 +272,7 @@ d
                   (begin (set! result-ready? #t)
                          (set! result x)
                          result  )  )))))))
+make-promise
 
 (define x (make-promise (lambda () (+ 2 3))))
 x

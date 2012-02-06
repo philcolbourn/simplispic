@@ -86,7 +86,7 @@ static int     getCHRch();
 static ATOM    readLST     ();
 static ATOM    readSYMorNUM( int c );
        ATOM    read        ();
-//static ATOM    read_raw    ();
+static ATOM    read_raw    ();
 static ATOM    read_token  ();
 static ATOM    readQUOTE   ();
 static ATOM    let_star_to_let( ATOM kvps,ATOM body );
@@ -249,7 +249,7 @@ ATOM read_token(){
 
 // FIXME: is this a read macro? no
 ATOM readQUOTE(){
-  ATOM atm = read();
+  ATOM atm = read_raw();
   ATOM lst = cons( atm,NIL );
   ATOM res = cons( kw_quote,lst );
   return res;
@@ -273,6 +273,22 @@ ATOM eval_macros( ATOM exp ){
   return exp;
 }
 
+ATOM read_raw(){
+  ATOM t = read_token();
+  if ( is_eq( t,make_chr(EOF) ) )   return t;
+  if ( is_sym(t) )                  return t;
+  if ( is_num(t) )                  return t;
+  if ( is_str(t) )                  return t;
+  if ( is_eq( t,make_chr(APOS) ) )  return readQUOTE();  // FIXME: can this be macro?
+  if ( is_eq( t,make_chr('(') )  )  return readLST();
+  if ( is_eq( t,make_chr(')') )  )  return t;
+  if ( is_eq( t,make_chr(DOT) ) )   return t;
+  if ( is_chr(t) )                  return t;
+  if ( is_con(t) )                  return t;  // for constants
+  EXIT( "What is that?",t );
+  return NIL;
+}
+
 ATOM read(){
   ATOM t = read_token();
   //PEEK( "",t );  
@@ -291,14 +307,6 @@ ATOM read(){
   EXIT( "What is that?",t );
   return NIL;
 }
-
-/*
-ATOM read(){
-  ATOM exp = read_raw();
-  ATOM res = eval_macros( exp );
-  return res;
-}
-*/
 
 /*
 (define space #\ )
