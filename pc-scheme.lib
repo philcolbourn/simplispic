@@ -2,7 +2,6 @@
 (define pc-scheme.lib #t)
 
 ;; some necessary symbols
-;(define '. '.)  ; what is this for?
 
 ;; alias primitives with nicer names
 ;(define + iadd)

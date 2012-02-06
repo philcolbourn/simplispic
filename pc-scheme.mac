@@ -121,27 +121,20 @@
 (equal? '(1 a) '(1 a))
 (equal? '(1 (2 () 3) a) '(1 (2 () 3) a))
 
-(define match (lambda (tem exp env)
-  ;(displayn "match tem=[" tem "]  exp=[" exp "]  env=[" env "]")
+(define match (lambda (pat exp env)
+  ;(displayn "match pat=[" pat "]  exp=[" exp "]  env=[" env "]")
   (cond 
-        ((eq? env #f) #f) 
-        ;((null? tem)  ;(displayn "END OF TEMPLATE exp=" exp) 
-        ;              (if (null? exp) env #f)  )
-        ;((null? exp)  ;(displayn "END OF EXPRESSION tem=" tem)
-        ;              #f  )
+        ((eq? env #f) #f)
         ; SICP place
-        ;((eq? tem exp) env)
-        ((equal? tem exp) env)
-        ((var? tem)   ;(displayn "symbol=" tem)
-                      (match-or-define-variable (alist-assoc tem env) tem exp env)  )
-        ; my place for atom?
-        ;((atom? tem)  ;(displayn "atom=" tem)
-        ;              (if (equal? tem exp) env #f)  )
-        ((pair? tem)  ;(displayn "pair=" tem)
+        ;((eq? pat exp) env)
+        ((equal? pat exp) env)
+        ((var? pat)   ;(displayn "var=" pat)
+                      (match-or-define-variable (alist-assoc pat env) pat exp env)  )
+        ((pair? pat)  ;(displayn "pair=" pat)
                       (if (pair? exp) 
-                          (match (cdr tem) 
+                          (match (cdr pat) 
                                  (cdr exp) 
-                                 (match (car tem) (car exp) env)  )
+                                 (match (car pat) (car exp) env)  )
                           #f  ))
         (else         ;(displayn "unknown list element") 
                       #f)  )
@@ -164,36 +157,24 @@
        '()  )
 
 (match '?nil '() '())
-;(exit 1)
+
+; for a var, no need to perform macro expansion since we assume it is already
+; done during read.
+; but after a pair we should check
+; macros in transformers should NOT go through macro expansion
 
 (define make-exp (lambda (tem env)
   ;(displayn "make-exp  tem=[" tem "]  env=[" env "]")
   (cond 
-        ((null? tem) '())
-        
-        ((var? tem)  ;(displayn "symbol=" tem)
-                     (eval-macro (alist-lookup tem env))
-         ;(define kvp (alist-assoc-fail tem env #f))
-         ;(display "kvp=" kvp)
-         ;(if kvp                        ; symbol found in env
-         ;    (eval-macro (kvp-val kvp))
-         ;    tem)
-           )
-             
-        ((atom? tem)  ;(displayn "atom=" tem)
-                      tem  )
-        
-        ((pair? tem)  ;(displayn "pair=" tem)
-         ; do i need eval-macro here as well?
-         (cons 
-           (eval-macro (make-exp (car tem) env)) 
-           (eval-macro (make-exp (cdr tem) env))  ))
-
-        (else (display "unknown\n") #f)  )
+        ( (null? tem)  '() )
+        ( (var? tem)   (alist-lookup tem env) )
+        ( (atom? tem)  tem  )
+        ( (pair? tem)  (eval-macro (cons (make-exp (car tem) env) 
+                                         (make-exp (cdr tem) env)  )  ))
+        (else          (display "unknown\n") #f )  )
 ))
 
 (define transformers '(
-  ;(nil ())
   ((define (?n . ?a) . ?b) (define ?n (lambda . ?a) . ?b)) 
   ((begin . ?b) (progn . ?b)) 
   ((inc ?a) (+ ?a 1)) 
@@ -205,90 +186,110 @@
   ((or) #f)  
   ((or ?e) ?e) 
   ((or ?e1 . ?e2) (if ?e1 #t (or . ?e2))) 
+  ((let  () . ?b) ((lambda () . ?b)))
+  ;((let  () . ?b) (progn . ?b))
   ((let  ((?f ?e)) . ?b) ((lambda (?f) . ?b) ?e))
   ((let* ((?f ?e)) . ?b) ((lambda (?f) . ?b) ?e))
-  ((let* ((?f ?e) . r) . ?b) ((lambda (?f) (let* ?r . ?b)) ?e))
+  ((let* ((?f ?e) . ?r) . ?b) ((lambda (?f) (let* ?r . ?b)) ?e))
+  ((letrec () . ?b) (let () ?b))
+  ; why inner let? ((letrec ((?f ?e)) . ?b) (let () (define ?f ?e) (let () . ?b)))
+  ;((letrec ((?f ?e)) . ?b) (let () (define ?f ?e) . ?b))
+
+  ((letrec->define () . ?b) ?b )
+  ((letrec->define (?d . ?r) . ?b) ((define . ?d) . (letrec->define ?r . ?b)) )
+
+  ((letrec ?v . ?b) (let () . (letrec->define ?v . ?b)))
+  
   ((cons-stream ?a ?b) (cons ?a (delay ?b)))
 
 ))
+; (let () (+ 1 2)) -> ((lambda () (+ 1 2)))
 
-;(define make-trans-env (lambda (env)
-;  (if (null? env) 
-;      '() 
-;      (cons 
-;        (make-kvp (car env) '*UNDEF*) 
-;        (make-trans-env (cdr env))  ))  ))
+; macro is (pattern template)
+(define macro-pat (lambda (macro) (car macro) ))
+(define macro-tem (lambda (macro) (cadr macro) ))
+
+; patern is (key . rest)
+(define pat-key (lambda (pat) (car pat) ))
+(define pat-rest (lambda (pat) (cdr pat) ))
+
+(define exp-tag (lambda (exp) (car exp)))
 
 (define eval-macro-worker (lambda (exp trans)
-  ;(displayn "emw exp=" exp)
-  (cond ((null? trans) exp)
-        ((atom? exp) exp)
-        ((not (eq? (caaar trans) (car exp))) (eval-macro-worker exp (cdr trans)))
-        (else  ; 
-          ;(displayn "emw trans=" trans)
-          ;(displayn "emw tem=" (caar trans))
-          ;(define env (match (caar trans) exp (make-trans-env (caddar trans))))
-          (define env (match (caar trans) exp '()))
-          ;(displayn "emw env=" env)
-          (if env 
-              (progn
-                ;(displayn "Transform " exp " -> ")
-                (define nexp (make-exp (cadar trans) env))
-                ;(print nexp) (newline)
-                (eval-macro-worker nexp transformers) 
-                ;nexp 
-              ) 
-              (progn
-                ;(display "Try next transformer ") (print (cdr trans)) (newline)
-                (eval-macro-worker exp (cdr trans))  ))  ; try next transform
-            )              )  ))
-            
-(define eval-macro (lambda (exp) (eval-macro-worker exp transformers)))
-;(define eval-macro (lambda (exp) exp))
+  (cond ((null? trans) exp)      ; no more translations
+        ((atom? exp) exp)        ; we don't translate atoms
+        ((not (eq? (pat-key (macro-pat (car trans))) (exp-tag exp)))
+         (eval-macro-worker exp (cdr trans))  )
+        (else
+         ((lambda (env)
+                  (cond (env (make-exp (macro-tem (car trans)) env) ) 
+                        (else (eval-macro-worker exp (cdr trans)))  )) 
+          (match (macro-pat (car trans)) exp '())  )))))
+         
+(define eval-macro (lambda (exp) (eval-macro-worker exp transformers) ))
+
+; test
 
 (define ?count 0)  ;; count errors
 
 (define ? (lambda (expect exp)
   (displayn "test exp=" exp "->" expect)
-  (define result (eval1 exp))  ;; FIXME: this is bad
-  ;(let ((result (eval1 exp)))
-    (if (equal? result expect)
-      (progn
-        (display "  pass\n")
-        #t  )
-      (progn
-        (set! ?count (+ ?count 1))
-        (displayn "FAIL! Got" result)
-        (if (= ?count 5) (exit) #f )  )  )
-  ;)   
+  ;(define result (eval1 exp))  ;; FIXME: this is bad
+  (let ((result (eval1 exp)))
+    (cond ((equal? result expect) (display "  pass\n") #t )
+          (else (set! ?count (+ ?count 1))
+                (displayn "FAIL! Got" result)
+                (if (= ?count 5) (exit) #f )  )  )
+  )   
 ))
 
-;(? 5 '(+ 2 3))
+(let () (+ 1 4))
+;(letrec->define ((x 1)(y 2)(z 3)))
+(letrec ((x 1)) (+ x 1))
+(letrec ((x 1) (y 2) (z 3)) (+ x y z))
 ;(? 5 '(+ 2 3 1))
-; org (don't process atoms) (remove nil () ()) (match tag of list) (no macro) (macro)
-;     (alist-assoc-fail) (eliminate assoc defines) | SICP-like version
-;     SICP version with eq instead of equal
-;     SICP version with equal
-1  ; 2580 23 232 23 8 23 23 | 23 23
-+  ; 2580 23 23 23 8 23 23 | 23 23
-(+)  ; 9978 (+7398) 4928 4808 823 32 823 823 | 823 823
-(+ 1)  ; 12582 (+2604) 4975 4855 870 64 870 870 | 870 870
-(+ 1 2)  ; 15186 (+2604) 5022 4902 917 96 917 917 | 917 917
-(+ 1 2 3)  ; 17790 (+2604) 5069 4949 964 128 964 964 | 964 964
-(+ 1 2 3 4)  ; 20394 (+2604) 5116 4996 1011 160 1011 1011 | 1011 1011
+(exit 1)
 
-(inc 3)  ; ... 3360 3378 | 3299 3253
-(begin 1 (inc 2) (+ 2 3))  ; ... 7270 7306 | 7132 7046
-(and)  ; ... 586 589 | 565 525
-(and 2)  ; ... 1129 1144 | 1052 978
-(and (= 1 2) (= 3 4) (= 5 6))  ; ... 21921 22050 | 21282 20992
+; org (don't process atoms) (remove nil () ()) (match tag of list) (no macro) (macro)
+;     (alist-assoc-fail) (eliminate assoc defines) | (SICP-like version)
+;     (SICP version with eq instead of equal)
+;     (SICP version with equal) (no make-exp on var?)
+;     (eval-macro of cons and on var)
+;     (eval-macro of cons and on var)
+; # (no eval-macro on var)
+
+1  ; 2580 23 232 23 8 23 23 | 23 23 23 23
+; # 23
++  ; 2580 23 23 23 8 23 23 | 23 23 23 23
+; # 23
+(+)  ; 9978 (+7398) 4928 4808 823 32 823 823 | 823 823 943 943
+; # 943
+(+ 1)  ; 12582 (+2604) 4975 4855 870 64 870 870 | 870 870 990 990
+; # 990
+(+ 1 2)  ; 15186 (+2604) 5022 4902 917 96 917 917 | 917 917 1037 1037
+; # 1037
+(+ 1 2 3)  ; 17790 (+2604) 5069 4949 964 128 964 964 | 964 964 1084 1084
+; # 1084
+(+ 1 2 3 4)  ; 20394 (+2604) 5116 4996 1011 160 1011 1011 | 1011 1011 1131 1131
+; # 1131
+(inc 3)  ; ... 3360 3378 | 3299 3253 3234 1832 3568
+; # 3549
+(begin 1 (inc 2) (+ 2 3))  ; ... 7270 7306 | 7132 7046 6262 4354 6960
+; # 6056
+(and)  ; ... 586 589 | 565 525 445 496 481
+; # 481
+(and 2)  ; ... 1129 1144 | 1052 978 959 1023 1027
+; # 1008
+(and (= 1 2) (= 3 4) (= 5 6))  ; ... 21921 22050 | 21282 20992 17167 12187 19165
+; # 14740
 ;(or)
 ;(or 2)
 ;(or (= 1 2) (= 3 4) (= 5 6))
 ;(let ((x 3)) (+ x 3))
-(let* ((x 3)) (+ x 3))  ; ... 10436 10496 | 10261 10197
-(let* ((x 3) (y 4)) (+ x y))  ; ... 23892 20478 | died died
-
+(let* ((x 3)) (+ x 3))  ; ... 10436 10496 | 10261 10197 9394 7888 10528
+; # 9605
+(let* ((x 3) (y 4)) (+ x y))  ; ... 23892 20478 | died 22985 20614 15946 22977
+; # 20246
 (exit 1)
 
 ; keep last

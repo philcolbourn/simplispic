@@ -51,14 +51,13 @@ extern char   *readp;            // cursor for reads
 extern FILE  *in;  // added for (load ...)
 
 extern ATOM    kw_quote, kw_lambda, kw_closure;
-extern ATOM    kw_let, kw_let_star, kw_letrec;
 extern ATOM    kw_primitive, kw_exit;
 extern ATOM    kw_define, kw_set;
 extern ATOM    kw_read, kw_load, kw_eval, kw_eval1, kw_eval_macro, kw_apply;
 extern ATOM    kw_if, kw_cond;
-extern ATOM    kw_progn, kw_begin, kw_delay ,kw_force;
+extern ATOM    kw_progn, kw_delay;
 extern ATOM    kw_display, kw_print;
-extern ATOM    kw_cons, kw_list, kw_cons_stream;
+extern ATOM    kw_cons, kw_list;
 
        void    _strcpy( char *d,char *s,int n );
        void    _strncpy( char *d,char *s,int n );
@@ -71,7 +70,6 @@ static int     getch();
 static void  (*ungetch)( int c );
 static void    ungetchNormal( int c );
 static void    ungetchString( int c );
-//static ATOM    reuse_sym();
 static int     getSYMch();
 static ATOM    readSYM     ();
 //static ATOM    readSYMc    ( int c );
@@ -88,10 +86,9 @@ static int     getCHRch();
 static ATOM    readLST     ();
 static ATOM    readSYMorNUM( int c );
        ATOM    read        ();
-static ATOM    read_raw    ();
+//static ATOM    read_raw    ();
 static ATOM    read_token  ();
 static ATOM    readQUOTE   ();
-//static ATOM    readCON     ();
 static ATOM    let_star_to_let( ATOM kvps,ATOM body );
        ATOM    eval_macros( ATOM exp );
 
@@ -113,9 +110,6 @@ char  *readp             = NULL;  // reading cursor for reads
 ATOM   kw_quote          = NIL;
 ATOM   kw_lambda         = NIL;
 ATOM   kw_closure        = NIL;
-//ATOM   kw_let            = NIL;
-//ATOM   kw_let_star       = NIL;
-//ATOM   kw_letrec         = NIL;
 ATOM   kw_primitive      = NIL;
 ATOM   kw_exit           = NIL;
 ATOM   kw_define         = NIL;
@@ -129,14 +123,11 @@ ATOM   kw_apply          = NIL;
 ATOM   kw_if             = NIL;
 ATOM   kw_cond           = NIL;
 ATOM   kw_progn          = NIL;
-//ATOM   kw_begin          = NIL;
 ATOM   kw_delay          = NIL;
-//ATOM   kw_force          = NIL;
 ATOM   kw_display        = NIL;
 ATOM   kw_print          = NIL;
 ATOM   kw_cons           = NIL;
 ATOM   kw_list           = NIL;
-//ATOM   kw_cons_stream    = NIL;
 
 ATOM   tag_env           = NIL;
  
@@ -216,14 +207,13 @@ ATOM read_token(){
   int c;
   SKIP:
   c = getch();
-  //
-  fputc( c,stderr );        // print leading token character
+  //fputc( c,stderr );        // print leading token character
   if ( c==EOF )            return make_chr(EOF);
   if ( c=='(' )            return make_chr(c);
   if ( c<=SP  )            goto   SKIP;            // skip whitespace
   if ( c==')' )            return make_chr(c);     // end-of-list
   //if ( c=='@' )            return readCON();       // constant
-  if ( c=='#' ){
+  if ( c==HASH ){
     int c2 = getch();                           // test next character
     if ( c2==ESC )         return make_chr( getCHRch() );
     if ( c2=='t' )         return TRU;
@@ -257,7 +247,7 @@ ATOM read_token(){
   return readSYM();        // anything else is a symbol
 }
 
-// FIXME: is this a read macro?
+// FIXME: is this a read macro? no
 ATOM readQUOTE(){
   ATOM atm = read();
   ATOM lst = cons( atm,NIL );
@@ -265,200 +255,25 @@ ATOM readQUOTE(){
   return res;
 }
 
-// FIXME: no good for (let () (e)) -> ((e)) instead of (e)
-// ((k v) ...) -> (let ((k v)) ...)
-/*
-ATOM let_star_to_let( ATOM kvps,ATOM body ){
-  if ( is_null(kvps) )  return body;
-  ATOM exp = let_star_to_let( cdr(kvps),body );
-  PEEK( "",exp );
-  ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
-  ATOM let = cons( kw_let,cons( kvp,cons( exp,NIL ) ) );
-  PEEK( "",let );
-  ATOM res = eval_macros( let );
-  PEEK( "",res );
-  return res;
-}
-*/
-
-/*
-ATOM let_star_to_let( ATOM kvps,ATOM body ){
-  if ( is_null( cdr(kvps) ) ){
-    ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
-    ATOM let = cons( kw_let,cons( kvp,body ) );
-    //PEEK( "",let );
-    ATOM res = eval_macros( let );
-    //PEEK( "",res );
-    return res;
-  }
-  ATOM exp = let_star_to_let( cdr(kvps),body );
-  //PEEK( "",exp );
-  ATOM kvp = cons( car(kvps),NIL );  // -> ((k v))
-  ATOM let = cons( kw_let,cons( kvp,cons( exp,NIL ) ) );
-  //PEEK( "",let );
-  ATOM res = eval_macros( let );
-  //PEEK( "",res );
-  return res;
-}
-*/
-
-/*
- (define-syntax letrec 
-   (syntax-rules () 
-     ((_ ((var init) ...) . body) 
-      (let () 
-        (define var init) 
-        ... 
-        (let () . body))))) 
-(letrec ((v i) ...) . body)
-  -> (let () (define v i) ... (let () . body))
-*/
-/*
-// ((x 1) (y 2) body) -> ((define x 1) (define y 2) (let () body))
-ATOM kvps_to_defines( ATOM kvps,ATOM body ){
-  if ( is_null( kvps ) )
-    return cons( eval_macros( cons( kw_let,cons( NIL,body )) ),NIL );
-  ATOM def = cons( kw_define,car( kvps));
-  return cons( def,kvps_to_defines( cdr(kvps),body ) );
-}          
-*/
-/*
-(define (define exp)
-  (if (match-taglist exp 'define)
-      (letrec ((name (car (cadr exp)))
-               (form (cdr (cadr exp)))
-               (body (cddr exp))  )
-               (lamb (make-lambda form body)  )
-              (list 'define name lamb)  )
-      #f
-  )
-)
-*/
 ATOM eval_macros( ATOM exp ){
   //PEEK( "",exp );
- 
   ATOM kvp = assoc( kw_eval_macro,gEnv );
   //PEEK( "",kvp );
-  if ( ! is_eq( kvp,FAL ) ){  // macro system not booted yet
-  // (eval-macro '(inc 3))
+  if ( ! is_eq( kvp,FAL ) ){  // macro system booted
+    // FIXME: simplify this?
+    // exp -> (eval-macro (quote (exp))) - i think
     ATOM nexp = cons( kw_eval_macro,cons( cons( kw_quote,cons( exp,NIL ) ),NIL ) );
     //PEEK( "",exp );
     //PEEK( "",nexp );
     ATOM res = eval( nexp,gEnv );
     //PEEK( "",res );
-    //_ms( gEnv );  // but res is not in env so it gets swept up
-    //exit(1);
     return res;
   }
-  PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
+  //PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
   return exp;
-/*
-  // (define (<name> <form>) <body>) -> (define <name> (lambda (<form>) <body>))
-  if ( match_taglist( exp,kw_define ) ){
-    if ( is_list( _2ND( exp ) ) ){
-      //PEEK( "found define",exp );
-      ATOM name = car( _2ND( exp ) );
-      ATOM form = cdr( _2ND( exp ) );
-      ATOM body = _Rfrom3( exp );
-      ATOM lamb = make_lambda( form,body );
-      //ATOM defn = list( kw_define,name,lamb,NIL );
-      ATOM defn = cons( kw_define, cons( name,cons( lamb,NIL) ) );
-      //peek( "eval_macro: defn",defn );
-      return defn;
-    }
-    //peek( "eval_macro: lst",lst );
-  }
-*/
-/*
-  // (let ((x 1) (y 2)) <body>) -> ((lambda (x y) <body>) 1 2)
-  if ( match_taglist( exp,kw_let ) ){
-    //if ( is_alist( _2ND(exp) ) ){
-      //PEEK( "found let",exp );
-      ATOM form = alist_keys( _2ND(exp) );  // get formal parameter names
-      //PEEK( "",form );
-      // FIXME: i don't like let's syntax: when read ((a 1) (b 2)) are lists
-      // but pair would result in ((a . 1) (b . 2))
-      ATOM args = alist_car_vals( _2ND(exp) );  // get arguement expressions
-      //PEEK( "",args );
-      //ATOM body = _3RD( exp );
-      ATOM body = _Rfrom3( exp );
-      //PEEK( "",body );
-      ATOM lamb = make_lambda( form,body );
-      //PEEK( "",lamb );
-      ATOM lexp = cons( lamb,args );
-      //PEEK( "",lexp );
-      return lexp;
-    //}
-    //peek( "eval_macro: lst",lst );
-  }
-*/
-/*
-(let* ((x 1) (y 2)) <body>) -> (let ((x 1)) (let ((y 2)) <body>))
--> (let ((x 1)) ((lambda (y) <body>) 2))
--> ((lambda (x) ((lambda (y) <body>) 2)) 1)
-*/
-/*
-  if ( match_taglist( exp,kw_let_star ) ){
-    //if ( is_alist( _2ND(exp) ) ){
-      //PEEK( "found let*",exp );
-      ATOM kvps = _2ND( exp );
-      ATOM body = _Rfrom3( exp );
-      ATOM res = let_star_to_let( kvps,body );
-      return res;
-    //}
-    //PEEK( "bad let*",exp );
-  }
-*/
-/*
-(letrec ((x 1) (y 2)) <body>)
-  -> (let ()
-          (define x 1)
-          (define y 2)
-          (let () <body>))
-          
-ATOM kvps_to_defines( ATOM kvps,ATOM body ){
-  if ( is_null( kvps ) )  return cons( kw_let,cons( NIL,body ));
-  ATOM def = cons( kw_define,car( kvps));
-  return cons( def,kvps_to_defines( cdr(kvps),body ) );
-}          
-*/
-/*
-  if ( match_taglist( exp,kw_letrec ) ){
-    //PEEK( "found letrec",exp );
-    ATOM kvps = _2ND( exp );
-    ATOM body = _Rfrom3( exp );
-    ATOM defs = kvps_to_defines( kvps,body );
-    //PEEK( "",defs );
-    ATOM res = eval_macros( cons( kw_let,cons( NIL,defs) ) );
-    //PEEK( "",res );
-    return res;
-  }
-  // (cons-stream a <body>) -> (cons a (delay <body>))
-  if ( match_taglist( exp,kw_cons_stream ) ){
-    //READ_PEEK( "found cons-stream",exp );
-    ATOM body = _Rfrom3( exp );
-    ATOM dely = cons( kw_delay,body );
-    ATOM args = cons( _2ND(exp),cons( dely,NIL) );
-    ATOM res = cons( kw_cons,args );
-    return res;
-  }
-  // (begin <body>) -> (progn <body>))
-  if ( match_taglist( exp,kw_begin ) ){
-    //READ_PEEK( "found begin",exp );
-    ATOM body = _Rfrom2( exp );
-    ATOM res = cons( kw_progn,body );
-    return res;
-  }
-*/
-//  if ( is_cons_stream( exp ) ){           // exp = (cons a b)
-//    ATOM a = eval( _2ND(exp),env );  // (eval a)
-//    ATOM b = make_proc( make_lambda( NIL,_3RD(exp) ),env );  // (eval b)
-//    RETURN3( cons( a,b ) );
-//  }
-  return exp;  // no change
 }
 
-ATOM read_raw(){
+ATOM read(){
   ATOM t = read_token();
   //PEEK( "",t );  
   //_mem_print_used_pairs( "gEnv",gEnv,_global_save );
@@ -468,7 +283,7 @@ ATOM read_raw(){
   if ( is_num(t) )                  return t;
   if ( is_str(t) )                  return t;
   if ( is_eq( t,make_chr(APOS) ) )  return readQUOTE();  // FIXME: can this be macro?
-  if ( is_eq( t,make_chr('(') )  )  return readLST();  //eval_macros( readLST() );
+  if ( is_eq( t,make_chr('(') )  )  return eval_macros( readLST() );
   if ( is_eq( t,make_chr(')') )  )  return t;
   if ( is_eq( t,make_chr(DOT) ) )   return t;
   if ( is_chr(t) )                  return t;
@@ -477,11 +292,13 @@ ATOM read_raw(){
   return NIL;
 }
 
+/*
 ATOM read(){
   ATOM exp = read_raw();
   ATOM res = eval_macros( exp );
   return res;
 }
+*/
 
 /*
 (define space #\ )
@@ -540,7 +357,7 @@ void _strncpy( char *d,char *s,int n ){
   EXITIF( i!=n,"Copied more then n chracters!",make_num(n) );
 }
 
-
+// FIXME: combine? getDelimitedch(from,first delim,second delim)
 int getSYMch(){ // return -char on non symbol except for escaped chars
   int c = readch();
   if ( c==ESC ){
@@ -634,7 +451,6 @@ ATOM readSYMorNUM(int sign){
   return readNUM(POS,c);
 }
 
-
 int getNUMch(){
   int c = readch();
   if ( c>='0' && c<='9' ) return c;
@@ -668,32 +484,6 @@ ATOM readCOM(){
 }
 
 /*
-ATOM readCON(){
-  int c;
-  ATOM a;
-  c = getch();
-  EXITIF( c==EOF,"Got EOF - need an integer for a constant",NIL );
-  if ( c>='0' && c<='9' )   return MAKE_CON( get_num( readNUM( POS,c ) ) );
-  if ( c=='-' || c=='+' ){
-    a = readSYMorNUM(c);
-    //PEEK( "",a );
-    if ( get_tag(a)==NUM ){
-      ATOM res = MAKE_CON( get_num( a ) );
-      //PEEK( "",res );
-      return res;
-    }
-    EXIT( "Digits expected after '+' or '-', got",a );
-  }
-  EXIT( "Integer expected, got",make_chr(c) );  // FIXME: why exit here?
-  ungetch(c);
-  ungetch('#');
-  ATOM sym = readSYM();
-  fprinta( stderr,sym );
-  return sym;
-}
-*/
-
-/*
 (define (readLST)
   (let ((t (read)))
     (cond ( (is_close_paren? t) nil)
@@ -721,34 +511,6 @@ ATOM readLST(){
   //PEEK( "",ret );
   return ret;
 }
-
-/*
-ATOM readLST_old(){
-  ATOM t = read();
-  if ( is_eq( t,EOL ) )  return NIL;
-  EXITIF( is_eq( t,END ),"Got EOF after '('",NIL );
-  ATOM a = cons( t,NIL );     // make cell, x tracks last cell in list 
-  ATOM x = a;
-  EXITIF( is_null(a),"No cell storage to start this list or pair",a );
-  while ( ! is_eq( t=read(),EOL ) ){
-    EXITIF( is_eq( t,END ),"Got EOF -need ')' or something",a );
-    if ( is_eq( t,EOP ) ){          // got '.' of pair
-      t = read();            // get cdr
-      EXITIF( is_eq( t,END ),"Got EOF - need cdr of pair",a );
-      set_cdr( x,t );
-      t = read();     // get EOL
-      EXITIF( ! is_eq( t,EOL ),"Need ')' to close list or pair",a );
-      return a;
-    }  
-    ATOM q = cons( t,NIL );  // make pair   
-    EXITIF( is_null(q),"No cell storage left for this list",a );
-    set_cdr( x,q );  // append new cell to a
-    x = q;          // hack to track last cell of this list
-  }
-  return a;
-}
-*/
-
 
 ATOM readString(char *s){  // read eval string and return
   reads = readp = s;

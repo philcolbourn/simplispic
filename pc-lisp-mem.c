@@ -251,8 +251,8 @@ inline int get_str_len( ATOM str ){
 }
 
 ATOM str_ref( ATOM str,ATOM ref ){
-  PEEK( "",str );
-  PEEK( "",ref );
+  //PEEK( "",str );
+  //PEEK( "",ref );
   EXITIF( get_num(ref)<0,"Negative String ref",ref );
   EXITIF( get_num(ref)>=get_str_len(str),"String ref out of range",ref );
   int s = get_str(str);
