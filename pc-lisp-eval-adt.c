@@ -22,7 +22,6 @@ int is_eval1      ( ATOM exp );
 int is_apply      ( ATOM exp );
 int is_load       ( ATOM exp );
 int is_read       ( ATOM exp );
-//int is_cons_stream( ATOM exp ){ return match_taglist( exp,kw_cons_stream ); }
 int is_delay      ( ATOM exp );
 int is_eval_list  ( ATOM exp );
 int is_if         ( ATOM exp );
@@ -40,7 +39,6 @@ if expression ADT
 ATOM if_pred( ATOM exp );
 ATOM if_con( ATOM exp );
 ATOM if_alt( ATOM exp );
-// (if p? con alt) special form since only con or alt is evaluated
 ATOM eval_if( ATOM exp,ATOM env );
 /*
 ((pred1 con1) (pred1 con2) ... (else alt))
@@ -73,19 +71,9 @@ definition ADT
 ATOM definition_variable( ATOM exp );
 
 ATOM definition_value( ATOM exp );
-
-// (define sym val) special form since sym is not evaluated
 ATOM eval_definition( ATOM exp,ATOM env );
-
-// (set! sym val) special form since sym is not evaluated
 ATOM eval_set( ATOM exp,ATOM env );
 ATOM variable_value( ATOM var,ATOM env );
-
-/*
-ATOM variable_kvp(ATOM var, ATOM env);
-*/
-
-
 
 #endif
 
@@ -100,13 +88,10 @@ int is_eval1      ( ATOM exp ){ return match_taglist( exp,kw_eval1 )      ; }
 int is_apply      ( ATOM exp ){ return match_taglist( exp,kw_apply )      ; }
 int is_load       ( ATOM exp ){ return match_taglist( exp,kw_load )       ; }
 int is_read       ( ATOM exp ){ return match_taglist( exp,kw_read )       ; }
-//int is_cons_stream( ATOM exp ){ return match_taglist( exp,kw_cons_stream ); }
 int is_delay      ( ATOM exp ){ return match_taglist( exp,kw_delay )      ; }
 int is_eval_list  ( ATOM exp ){ return match_taglist( exp,kw_list )       ; }
 int is_if         ( ATOM exp ){ return match_taglist( exp,kw_if )         ; }
 int is_cond       ( ATOM exp ){ return match_taglist( exp,kw_cond )       ; }
-//int is_and        ( ATOM exp ){ return match_taglist( exp,kw_and )        ; }
-//int is_or         ( ATOM exp ){ return match_taglist( exp,kw_or )         ; }
 int is_quoted     ( ATOM exp ){ return match_taglist( exp,kw_quote )      ; }
 int is_definition ( ATOM exp ){ return match_taglist( exp,kw_define )     ; }
 int is_variable   ( ATOM exp ){ return is_sym( exp )                      ; }
@@ -177,19 +162,18 @@ int is_cond_clause( ATOM clau ){
 }
 
 ATOM cond_clause_pred( ATOM clau ){
-  EXITIF( ! is_cond_clause( clau ),"Not an cond clause",clau );
+  EXITIF( ! is_cond_clause( clau ),"Not a cond clause",clau );
   return car( clau );
 }
 
 ATOM cond_clause_con( ATOM clau ){
-  EXITIF( ! is_cond_clause( clau ),"Not an cond clause",clau );
+  EXITIF( ! is_cond_clause( clau ),"Not a cond clause",clau );
   return cdr( clau );
 }
 
 ATOM eval_cond_clauses( ATOM lst,ATOM env ){
   ATOM clau = car( lst );
   ATOM pred = cond_clause_pred( clau );
-  //if ( ! is_null( eval(pred,env) ) ){  // old when () was false
   if ( ! is_eq( eval(pred,env),FAL ) ){
     ATOM con = cond_clause_con( clau );
     return evalseq( con,env );  // FIXME: is this right?
@@ -271,33 +255,22 @@ ATOM definition_value( ATOM exp ){
 ATOM eval_definition( ATOM exp,ATOM env ){
   //PEEK( "start",exp );
   MARK3;
-  //_mem_print_used_pairs( "used",usedPairs,_save );
   //PEEK( "",env );
   ATOM sym    = _2ND( exp );
   ATOM val    = eval( _3RD(exp),env ); // we must (eval value)
-  ATOM kvp    = assoc( sym,env );  // should work
+  //ATOM kvp    = assoc( sym,env ); 
+  ATOM kvp    = local_assoc( sym,env );  // was assoc - r4rs caught this - local frame only
   if ( ! is_eq( kvp,FAL ) ){  // redefine
+    //PEEK( "REDEFINE",kvp );
+    //PEEK( "REDEFINE",val );
     ATOM res = set_cdr( kvp,val );
     RETURN3( sym );
   }
   //PEEK( "",sym );
   //PEEK( "",val );
   kvp    = make_kvp( sym,val );
-  //_mem_print_used_pairs( "used",usedPairs,_save );
-  //PEEK( "",kvp );
-  //_gc_mark_assignments_as_special( kvp );
-  //fprintf( stderr,"", );
-  //_mem_print_used_pairs( "BEFORE used",usedPairs,_save );
-  //_env_preserve_changes( _save );
-  //_mem_print_used_pairs( "AFTER used",usedPairs,_save );
-  //exit(1);
   //PEEK( "",kvp );
   ATOM fra = addKVPair3( kvp,env );
-  //_mem_print_used_pairs( "AFTER ADD used",usedPairs,_save );
-  //ATOM def = cons( kw_define,fra );  // need special return to keep all
-  //PEEK( "done",fra );  
-  //RETURN3( def );
-  //RETURN3( kvp );
   RETURN3( sym );  // works for returning name
 }
 
@@ -310,20 +283,10 @@ ATOM eval_set( ATOM exp,ATOM env ){
   ATOM val    = eval( _3RD(exp),env ); // we must (eval value)
   //PEEK( "",sym );
   //PEEK( "",val );
-  //ATOM kvp    = assoc_kvp( sym,env );
-  ATOM kvp    = assoc( sym,env );  // should work
+  ATOM kvp    = assoc( sym,env );
   //PEEK( "",kvp );
-  //EXITIF( is_null( kvp ),"sym not found in environment",sym );
   EXITIF( is_eq( kvp,FAL ),"sym not found in environment",sym );
   ATOM res = set_cdr( kvp,val );
-  // should be able to gc here
-  //_ms( kvp );
-  //_env_preserve_changes( val );  // kvp is already safely? in frame
-  //_gc_mark_assignments_as_special( res );
-  //PEEK( "",kvp );
-//  ATOM set = cons( kw_set,kvp );  // need special return to keep all
-//  PEEK( "",set );  
-  //RETURN3( kvp );
   RETURN3( sym );
 }
 
@@ -332,8 +295,7 @@ ATOM eval_set( ATOM exp,ATOM env ){
 ATOM variable_value( ATOM var,ATOM env ){
   //ATOM res = assoc( var,env );
   ATOM kvp = assoc( var,env );
-  if ( is_eq( kvp,FAL ) ) return FAL;
-  //EXITIF( is_null( kvp ),"var not found in environment",var );
+  if ( is_eq( kvp,FAL ) ) return FAL; // FIXME: return undefined
   ATOM res = kvp_val(kvp);
   return res;
 }

@@ -55,7 +55,7 @@ extern ATOM    kw_primitive, kw_exit;
 extern ATOM    kw_define, kw_set;
 extern ATOM    kw_read, kw_load, kw_eval, kw_eval1, kw_eval_macro, kw_apply;
 extern ATOM    kw_if, kw_cond;
-extern ATOM    kw_progn, kw_delay;
+extern ATOM    kw_progn;
 extern ATOM    kw_display, kw_print;
 extern ATOM    kw_cons, kw_list;
 
@@ -123,7 +123,6 @@ ATOM   kw_apply          = NIL;
 ATOM   kw_if             = NIL;
 ATOM   kw_cond           = NIL;
 ATOM   kw_progn          = NIL;
-ATOM   kw_delay          = NIL;
 ATOM   kw_display        = NIL;
 ATOM   kw_print          = NIL;
 ATOM   kw_cons           = NIL;

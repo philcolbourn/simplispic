@@ -44,17 +44,12 @@ extern FLAGS  sar[SIZE];
 extern int  _sweepPairCount;
 extern int  _recycleStrCount;
 
-
 // ADTs
 
-#undef MAKE_PAIR_SET_AND_GET
-
-#define MAKE_PAIR_SET_AND_GET( type,name )  \
-  type set_##name( ATOM par,type name );    \
-  type name( ATOM par );
-
-MAKE_PAIR_SET_AND_GET( ATOM,car );
-MAKE_PAIR_SET_AND_GET( ATOM,cdr );
+ATOM set_car( ATOM par,ATOM car );
+ATOM set_cdr( ATOM par,ATOM cdr );
+ATOM car( ATOM par );
+ATOM cdr( ATOM par );
 
 void _inc_ref( ATOM p );
 
@@ -203,24 +198,37 @@ void _ms( ATOM env );
 
 // CODE
 
-#undef MAKE_PAIR_SET_AND_GET
+ATOM set_car( ATOM par,ATOM car ){
+  ASSERT_PAIR( par );
+  EXITIF( is_null( par ),"par is NIL",par );
+  ATOM old = _car(par);
+  if ( is_eq( car,old ) ) return car;  // nothing to do
+  _set_car( par,car );
+  if ( is_pair(car) )  _inc_ref( car );  // avoid race, inc b4 dec
+  if ( is_pair(old) )  _dec_ref( old );
+  return car;
+}
 
-#define MAKE_PAIR_SET_AND_GET( type,name )                     \
-  type set_##name( ATOM par,type name ){                       \
-    ASSERT_PAIR( par );                                        \
-    EXITIF( is_null( par ),"par is NIL",par );                 \
-    if ( is_pair( _##name(par) ) )  _dec_ref( _##name(par) );  \
-    _set_##name( par,name );                                   \
-    if ( is_pair(name) )  _inc_ref( name );                    \
-    return name;                                               \
-  }                                                            \
-  type name( ATOM par ){                                       \
-    EXITIF( is_null( par ),"par is NIL",par );                 \
-    return _##name( par );                                     \
-  }
+ATOM car( ATOM par ){
+  EXITIF( is_null( par ),"par is NIL",par );
+  return _car( par );
+}
 
-MAKE_PAIR_SET_AND_GET( ATOM,car );
-MAKE_PAIR_SET_AND_GET( ATOM,cdr );
+ATOM set_cdr( ATOM par,ATOM cdr ){
+  ASSERT_PAIR( par );
+  EXITIF( is_null( par ),"par is NIL",par );
+  ATOM old = _cdr(par);
+  if ( is_eq( cdr,old ) ) return cdr;  // nothing to do
+  _set_cdr( par,cdr );
+  if ( is_pair(cdr) )  _inc_ref( cdr );  // avoid race, inc b4 dec
+  if ( is_pair(old) )  _dec_ref( old );
+  return cdr;
+}
+
+ATOM cdr( ATOM par ){
+  EXITIF( is_null( par ),"par is NIL",par );
+  return _cdr( par );
+}
 
 void _inc_ref( ATOM p ){
   _set_ref( p,_ref(p)+1 );

@@ -13,6 +13,7 @@
 (define * imul)
 ; FIXME: do same for * and / etc.
 (define / idiv)
+(define remainder imod)
 (define modulo imod)
 (define % imod)
 (define eq? eqp)
@@ -78,14 +79,24 @@
 (define cddddr (lambda (a) (cdr (cdr (cdr (cdr a))))) )
 
 ; more primitives
+;
 (define newline (lambda () (display "\n")))
-
-
 (define else #t)  ;; should be a keyword in cond
-; FIXME: is this needed now?
-(define not (lambda (b) (if b #f #t)) ) 
-(define zero? (lambda (x) (eq? x 0)) )  ; FIXME: make macro?
-(define list (lambda args) args)  ; is it this simple?
+(define list (lambda args args))
+
+; not does not work as macro in rxrs test!
+;
+(define not (lambda (a) (if a #f #t)))
+
+; identity procedure
+;
+(define I (lambda (x) x))
+
+
+;(define max (lambda args
+;  (cond ((null? args) if (and (number? (car args)) ())
+;))
+
 (define match-taglist (lambda (lst tag)
   (if (not (pair? lst) ) 
       #f
@@ -94,18 +105,8 @@
 (define make-lambda (lambda (form body)
   (cons 'lambda (cons form body))  ))
 
-(define x '(1 2))
-(+ . x)
-(+ . (1 2 3))
-(- . x)
-(- . (1 2 3))
-(string-ref "abc" 1)
-(symbol-ref 'abc 0)
-(symbol-ref 'abc 1)
-(symbol-ref 'abc 2)
-(string-length "abcdefg")
-(string-length "ab")
-;(exit 1)
+(load "pc-adt-kv.lib")
+(load "pc-adt-alist.lib")
 
 ; load macros
 
@@ -117,8 +118,18 @@
 
 ; FIXME: this need to go after all RxRS is defined
 
-;(define null-environment (cdddr (lambda () 12)))  ; (closure <proc> env G)
-;null-environment
+; closure ADT
+;   (closure <proc> env G)
+;
+(define (closure? c) (match-taglist c 'closure))
+(define (closure-proc c) (cadr c))
+(define (closure-env c) (cdddr c))
+
+; use implementation knowledge to get null-environment
+;
+(define null-environment (closure-env (lambda () 'nothing)))
+print null-environment
+;(exit 1)
 
 ;; simplispic version of equal?
 (define _equal? (lambda (a b)
@@ -131,75 +142,7 @@
           #f  )  )  ))
 
 
-(? '#t '(eq? 1 1))
-;boolean?
-(? '#t '(boolean? #t))
-;(exit 1)
-(? #t '(boolean? #f))
-(? #f '(boolean? '()))
-(? #f '(boolean? 0))
-(? #f '(boolean? 1))
-
-(define (?a expect exp args)
-  (printerr (cons exp args))
-  (printerr '\ ->\ )
-  (printerr expect)
-  (printerr '\ )
-  ;(define result (eval1 exp))  ;; FIXME: this is bad
-  (let ((result (apply exp args)))
-    (if (equal? result expect)
-      (begin
-        (printerr 'pass)
-        (printerr '\n)
-        #t  )
-      (begin
-        (set! ?count (+ ?count 1))
-        (printerr 'FAIL\ got\ )
-        ;(printerr '\ )
-        ;(printerr 'got)
-        ;(printerr '\ )
-        (printerr result)
-        (printerr '\n)
-        (if (= ?count 5) (exit) '() )  )  )
-  )   
-)
-
-
-(define (?atoms exp)
-  (?a '0 exp '(0))
-  (?a '1 exp '(1))
-  (?a '() exp '(()))
-  (?a 'sym exp '(sym))
-  (?a "string" exp '("string"))  )
-
-(define (?lists exp)
-  (?a '() exp '(()))
-  (?a '(1) exp '((1)))
-  (?a '(1 2) exp '((1 2)))
-  (?a '(1 2 3) exp '((1 2 3)))
-  (?a '(1 (2) 3) exp '((1 (2) 3)))
-  (?a exp exp (cons exp '()))
-    )
-
-(define (?all exp)
-  (?atoms exp)
-  (?lists exp)  )
-
-;(?all (lambda (a) (car (cons a 0))) )
-
-
-;(? #t '())
-;(exit 1)
-
-
-;; identity procedure
-
-(define I (lambda (x) x))
-
-;(? I '(I I))
-(?all I)
-
-;; force a promise - force is not a special form
+; force a promise - force is not a special form
 
 (define force (lambda (p) (p))) 
 (define d (delay (cons 1 d)))
@@ -227,37 +170,15 @@ d
     
 (define ss show-stream)
 
-
-(define x '(1 2 3))
-;x
-(set-cdr! x '(a b c))
-(? '(1 a b c) 'x)
-(set-car! x '(d e f))
-(? '((d e f) a b c) 'x)
-
-
-(? #t '(zero? 0))
-(? #f '(zero? 1))
-(? #f '(zero? '()))
-
-(define list-tail
-  (lambda (x k)
-    (if (zero? k)
-        x
-        (list-tail (cdr x) (- k 1)))))
-list-tail
-
+(define list-tail (lambda (x k)
+  (if (zero? k)
+      x
+      (list-tail (cdr x) (- k 1))  )))
 
 (define (list-ref a n)
-  (displayn "list-ref a=" a "  n=" n)
-  (if (= n 0)
-      (car a)
-      (list-ref (cdr a) (- n 1))  )  )
-
-(? 1 '(list-ref '(1 2 3) 0))
-(? 2 '(list-ref '(1 2 3) 1))
-(? 3 '(list-ref '(1 2 3) 2))
-(exit 1)
+  (cond ((null? a) ())
+        ((eq? n 0) (car a))
+        (else (list-ref (cdr a) (- n 1)))  ))
 
 (define make-promise
   (lambda (proc)
@@ -272,16 +193,16 @@ list-tail
                   (begin (set! result-ready? #t)
                          (set! result x)
                          result  )  )))))))
-make-promise
+;make-promise
 
-(define x (make-promise (lambda () (+ 2 3))))
-x
-(force x)
+;(define x (make-promise (lambda () (+ 2 3))))
+;x
+;(force x)
 ;(exit 1)
 
 ;; an expected test
 
-(define (fact n)  ;; test define syntactic sugar macro
+(define (fact n)
   (if (= n 0)
       1
       (* n (fact (- n 1)))  )  )
@@ -289,6 +210,7 @@ x
 (? 1 '(fact 0))
 (? 1 '(fact 1))
 (? 120 '(fact 5))
+
 ;;;;;;;;;; tests
            
 ;; a version of car, cdr and cons using lambda
@@ -303,16 +225,6 @@ x
 (define kar2 (lambda (x) (x 1)))
 (define kdr2 (lambda (x) (x 2)))
 
-(define car2 (lambda (x) (car x)))
-
-
-;; test harness - not finished
-
-(define test1 (lambda (pred)
-  (if (eval1 pred)
-      'pass
-      (progn (display "FAIL: ") pred)  )  ))
-
 ; is atm a member of an improper list?
 
 (define (member-imp? atm lst)
@@ -321,12 +233,6 @@ x
         ((eq? atm (cdr lst)) #t)
         (else (member-imp? atm (cdr lst)))  ))
         
-(? #f '(member-imp? 1 '()))
-;(member-imp? 1 '(2 3))
-(? #f '(member-imp? 1 '(2 3)))
-(? #t '(member-imp? 1 '(1 2 3)))
-(? #t '(member-imp? 4 '(1 2 3 . 4)))
-
 (define pr (lambda (a)
   (if (atom? a)
       (print a)
@@ -338,18 +244,11 @@ x
 ;      (eval (car (cdr (car conds))) bindings))
 ;      (eval-cond (cdr conds) bindings)  )  ))
 
+; various list implementations
+;
 (? '(1 2 3) '(list 1 2 (+ 1 2)))
-(define pc-list2 (lambda args args) )  ; is it this simple?
 (define pc-list3 (lambda (first . rest) (cons first rest) ) )
 
-
-
-
-;(define x 2)
-;(+ x 3)
-;(+ . (list x 3))
-;(+ (list x 3))
-;;.
 (define (_append a b)
   (cond ((null? a) b)
         ((null? b) a)
@@ -411,12 +310,11 @@ x
            ((not (list? list)) #f)
            ((equal? x (car list)) #t)
            (else   (member? x (cdr list)))  ))
-(? #f '(member? 2 '()))
-(? #f '(member? 2 '(1 3)))
-(? #t '(member? 2 '(1 2 3)))
-(? #f '(member? 4 '(1 2 3 . 4)))
-
-;(define ? 1) ; what does redefining this do?
+           
+(define (member x lst)
+  (cond ((null? lst) #f)
+        ((equal? (car lst) x) lst)
+        (else (member x (cdr lst)))  ))
 
 (define (for-each f lst)
 	(if (not (null? lst))
@@ -434,12 +332,6 @@ x
 
 (define map map-list)
 
-;(for-each (lambda (x) (display x) (display " ")) '(basic for-each test))
-
-;(reverse '(1 (2 3) 4 5 6))
-
-;(begin "ignore" (cons 1 2) "begin result")
-
 ;; convert procedures into cps form
 ;(define (cps-prim f)
 ; (lambda args
@@ -452,19 +344,6 @@ x
 ;(define *& (cps-prim *))
 ;(define +& (cps-prim +))
 ;(+& 2 3 (lambda (x) (print x)))
-
-;; make sure set-*! are working
-
-;(define set-test '(2 . 3))
-;set-test
-;(set-car! set-test 22)
-;set-test
-;(set-cdr! set-test 33)
-;set-test
-;(set! set-test '(222 . 333))
-;set-test
-
-
 
 ; FIXME: no map-car
 
@@ -485,24 +364,11 @@ x
 ;        (bottom '(too few arguments to map)))
 ;      (else (_map a* '())))))
 
-;(letrec ((x 1) (y 2)) (+ 2 3) (* 2 6))
-;(exit 1)
+(load "pc-r4rstest.sim")
 
-(let ((a 1)) (+ a 11))
-(let ((a 1) (b 2)) (+ a b))
-(let* ((a 1)) (+ a 11))
-(let* ((a 1) (b 2)) (+ a b))
-
-(exit 0)
-
-; keep last
-
+;;;;;;;;;; keep last
+;
 (if (> ?count 0)
-  (begin
-    (printerr "Error: Toy library failed verification tests\n")
-    (printerr 'errors=)
-    (printerr ?count)
-  )
-  (printerr "Note: Toy library passed verification tests\n")
-)
+  (displayn "Error: Toy library failed verification tests\n" "errors=" ?count)
+  (displayn "Note: Toy library passed verification tests\n")  )
 

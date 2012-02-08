@@ -60,6 +60,7 @@ ATOM    readString( char *s );
 //void   _strcpy( char *d,char *s,int n );
 
 ATOM    assoc( ATOM sym,ATOM env );
+ATOM    local_assoc( ATOM sym,ATOM env );
 //ATOM    assoc_kvp( ATOM sym,ATOM env );
 ATOM    make_env();
 ATOM    extend_env( ATOM env );
@@ -154,57 +155,24 @@ void boot(){
     //if ( i==1 ) exit(1);
   }
   //_set_mem( make_par(i-1), NIL );  // last one -> NIL, not make_mem(0)
-  //exit(1);
   usedPairs = MEM0;               // [0] is used from begining
   _set_mem( usedPairs,usedPairs );  // make circular
   _set_bak( usedPairs,usedPairs );
   //recycleSweeper = usedPairs;
   lastUsedPair = usedPairs;
-  //exit(1);
   fputs( "Create global environment...\n",stderr );
-  //MARK3;
-  //exit(1);
   gEnv    = cons( NIL,NIL );  // global environment -> empty environment 
-  //exit(1);
   _inc_ref( gEnv );  // interpreter hold ref on environment
   GLOBAL_MARK3;
   lastUsedPair = gEnv;  // hack?
   _mem_print_used_pairs( "gEnv",gEnv,_global_save );
-  //exit(1);
   // can't do this now with distinst NIL
   //_set_car( usedPairs,readString( "\"*used pairs*\"" ) );
-  //_cm_check_mem();
-  //exit(1);
-/*
-  // test free and used lists
-  dump(5);
-  ATOM test1 = _remove_next_free();
-  setcar( test1,readString("test1") );
-  dump(5);
-  ATOM test2 = _remove_next_free();
-  setcar( test2,readString("test2") );
-  dump(5);
-  _remove_next_used(usedPairs);
-  dump(5);
-  _remove_next_used(usedPairs);
-  dump(5);
-  // should be same as when started
-  //exit(1);
-*/
-  // since all cells are erased, global environment should be empty
-  //   ie a NIL frame
-  //ATOM globals = readString("globals" );  // make a globals symbol
-  // FIXME: make frame ADT?
-
 
   fputs( "Create keyword symbols...\n",stderr );
   kw_quote       = readString( "quote"       );  
-  //exit(1);
   kw_lambda      = readString( "lambda"      );  
   kw_closure     = readString( "closure"     );  
-  //kw_let         = readString( "let"         );  
-  //kw_let_star    = readString( "let*"        );  
-  //kw_letrec      = readString( "letrec"      );  
   kw_primitive   = readString( "primitive"   );
   kw_define      = readString( "define"      );
   kw_set         = readString( "set!"        );
@@ -217,11 +185,8 @@ void boot(){
   kw_apply       = readString( "apply"       );
   kw_if          = readString( "if"          );  
   kw_cond        = readString( "cond"        );
-  kw_delay       = readString( "delay"       );  
   kw_progn       = readString( "progn"       );
-  //kw_begin       = readString( "begin"       );
   kw_cons        = readString( "cons"        );
-  //kw_cons_stream = readString( "cons-stream" );
   kw_list        = readString( "list"        );
 
   tag_env        = readString( "env"         );
@@ -229,12 +194,7 @@ void boot(){
 
   fputs( "Create primitive procedures...\n",stderr );
   REGISTER_PRIMITIVES_1(  1,car     );
-  //exit(1);
-  //PEEK( "",gEnv );
-  //exit(1);
   REGISTER_PRIMITIVES_1(  2,cdr     );
-  //PEEK( "",gEnv );
-  //exit(1);
   REGISTER_PRIMITIVES_2(  3,cons    );
   REGISTER_PRIMITIVES_2(  4,iadd    );
   REGISTER_PRIMITIVES_2(  5,isub    );
@@ -261,8 +221,6 @@ void boot(){
   REGISTER_PRIMITIVES_2( 26,imod    );
   REGISTER_PRIMITIVES_2( 27,ishl    );
   REGISTER_PRIMITIVES_2( 28,ishr    );
-  //REGISTER_PRIMITIVES_2( 29,list    );
-  //REGISTER_PRIMITIVES_2( 29,apply   );
   REGISTER_PRIMITIVES_1( 31,procp   );
   REGISTER_PRIMITIVES_2( 32,set_car );
   REGISTER_PRIMITIVES_2( 33,set_cdr );
@@ -283,8 +241,6 @@ void boot(){
   //KEEP3(gEnv);  // FAILS
   //KEEP3( cdr(pcar) );  // correct, assuming all these will be defines
   _cm_check_mem();  // OK
-  //exit(1);
-  //_cm_check_mem_leak();  
   fputs( "Booted and memory checked.\n",stderr );
 }
 
@@ -307,10 +263,7 @@ EQUAL:
   return FALSE;
 }
 
-int not( int a ){ 
-  if (a) return FALSE; 
-  else return TRUE; 
-}
+int not( int a ){ return ( (a) ? FALSE : TRUE ); }
 
 /* 
 ATOM set( ATOM var,ATOM val,ATOM env ){
@@ -321,45 +274,13 @@ ATOM set( ATOM var,ATOM val,ATOM env ){
 }
 */
 
-ATOM pair( ATOM keys,ATOM vals ){
-  //PEEK( "",keys );
-  //PEEK( "",vals );
-  return make_alist( keys,vals );
-}
+ATOM pair( ATOM keys,ATOM vals ){ return make_alist( keys,vals ); }
 
 /*
-// environments are circular: global.fn->(proc fEnv) -> ... -> global
-ATOM assoc( ATOM sym,ATOM env ){         // eg. ( (k.v) ((k.v) (k.v)) (k.v) )
-ASSOC:
-  //peek( "assoc: sym",sym );
-  //peek( "assoc: env",env );
-  if ( is_null(env) ) return NIL;    // reached end of environment
-  //if ( ! is_pair( env ) ) return NIL;   // () reached end of environment
-  ATOM first = car( env );              // first key-value pair (k.v)
-  //peekPair( "assoc: match? first",first );
-  //if ( is_atom( first ) ) return NIL;   // atom
-  if ( is_kvp(first) ){               // (a . b) car is pair - process car 
-    //peek( "assoc: is kvp",first );
-    if ( is_eq( sym,kvp_key(first) ) ){
-      ATOM val = kvp_val( first );
-      //peek( "assoc: found! val",val );
-      return val;          // symbol found return value
-    }
-    
-    ATOM res = assoc( sym,cdr(env) );     // else to search rest of list
-    return res;
-  }
-  //peek( "assoc: not kvp first",first );
+(define assoc (lambda (sym env)
   
-  // ( (k.v) (k.v) ...) must be a list here
-  //if ( is_proc( first ) ) return NIL;   // ((lambda (x) (car x)) env . G) don't look for sym in procedures
-  // no (k.v) so search list
-  ATOM res = assoc( sym,first );     // car is pair - process car tree
-  if ( ! is_null(res) )  return res;
-  return assoc( sym,cdr(env) );
-}
+))
 */
-
 
 // env is list of frames, a frame is an alist
 ATOM assoc( ATOM sym,ATOM env ){         // eg. ( ((k.v)) ((k.v) (k.v)) )
@@ -379,24 +300,23 @@ ASSOC2:
   goto ASSOC2;
 }
 
-/*
-ATOM assoc_kvp( ATOM sym,ATOM env ){         // eg. ( (k.v) ((k.v) (k.v)) (k.v) )
-ASSOC:
-  if ( is_null(env) ) return NIL;    // reached end of environment
-  ATOM first = car( env );              // first key-value pair (k.v)
-  if ( is_kvp(first) ){         // (a . b) car is pair - process car 
-    if ( is_eq( sym,kvp_key(first) ) ){
-      ATOM val = first;
-      return val;          // symbol found return value
-    }
-    ATOM res = assoc_kvp( sym,cdr(env) );  // else search rest of list
-    return res;
+// search local frame only
+ATOM local_assoc( ATOM sym,ATOM env ){         // eg. ( ((k.v)) ((k.v) (k.v)) )
+  //PEEK( "",sym );
+  //PEEK( "",env );
+  // required?
+  if ( is_null(env) ) return FAL;    // reached end of environment
+  ATOM frame = car( env );              // first frame
+  //PEEK( "",frame );
+  //if ( ! is_null( cdr(env) ) ) PEEK( "",cadr( env ) );
+  ATOM kvp = alist_assoc( sym,frame );
+  //PEEK( "",kvp );
+  if ( ! is_eq( kvp,FAL ) ){  // found
+    return kvp;
   }
-  ATOM res = assoc_kvp( sym,first );  // first is list so search it
-  if ( ! is_null(res) )  return res;
-  return assoc_kvp( sym,cdr(env) );
+  return FAL;
 }
-*/
+
 
 /*
 ATOM make_env(){
@@ -418,33 +338,6 @@ ATOM env_find_kvp( ATOM env ){
   table_find();
 }
 */
-// this was hack that seemed to work
-/*
-ATOM assoc2(ATOM sym, ATOM env){         // eg. ( (k.v) ((k.v) (k.v)) (k.v) )
-ASSOC2:
-  if IS_NIL( env )                   return NIL;    // reached end of environment
-  ATOM first = car( env );                          // first key-value pair (k.v)
-  if EQ( sym,car( first ) )    return cdr( first );  // symbol found return v pair
-  if ( is_pair( car( first ) ) ){                   // car is pair - do car tree
-    ATOM ret = assoc2( sym,first );
-    if NOT_NIL( ret )                return ret;    // found sym in car list
-    env = cdr( env );           
-    goto ASSOC2;       // tail-call assoc2( s,CDR(e) );
-  }
-  peek( "sym",sym );
-  peek( "env",env );
-  //exit(1);
-  //if ( ! is_proc( env ) ){  // don't look for sym in procedures
-    env = cdr( env );           
-    goto ASSOC2;       // tail-call assoc2( s,CDR(e) );
-  //}
-  //else{
-    //printf( "assoc2: skipping function" );
-    //exit(1);
-  //}
-  return NIL;
-}
-*/
 
 ATOM evallst( ATOM lst,ATOM env ){
   if ( is_null(lst) ) return NIL; //RETURN( NIL );
@@ -454,9 +347,6 @@ ATOM evallst( ATOM lst,ATOM env ){
   ATOM res = cons( this,rest );
   return res;
 }
-// FIXME: evalseq may allow define and set! and set-car! and set-cdr!
-// these make add pairs to env that need to be kept.
-// need to specially make defined and set! pairs for gc
 
 ATOM evalseq( ATOM seq,ATOM env ){
   if ( is_null(seq) )  return NIL;  // r4rs test bug 
@@ -507,6 +397,7 @@ ATOM make_frame( ATOM alst,ATOM env ){
   //setcar( env,alst );
   return fra;
 }
+
 /*
   ATOM oldlist = car( env );
   ATOM newlist = cons( kvp,oldlist );
@@ -518,15 +409,9 @@ ATOM addKVPair3( ATOM kvp,ATOM env ){
   //PEEK( "",env );
   EXITIF( ! is_kvp( kvp ),"kvp is not a key-value-pair",kvp );
   ATOM oldlist = car( env );
-  //PEEK( "1",oldlist );
   EXITIF( ! is_alist( oldlist ),"oldlist is not an alist",oldlist );
-  //PEEK( "2",oldlist );
   ATOM newlist = extend_alist( kvp,oldlist );
-  //PEEK( "3",newlist );
-  //set_gcm( newlist,2 );  // FIXME: hack!
   set_car( env,newlist );
-  
-  //PEEK( "done",newlist );
   return newlist;
 }
 
@@ -577,30 +462,9 @@ ATOM eval( ATOM exp,ATOM env ){
     //SYM_PEEK( "Apply",res );
     RETURN3( res );
   }
-/*
-  // (cons-stream a b) primative -> (a . (delay b)) - special form
-  if ( is_cons_stream( exp ) ){           // exp = (cons a b)
-    ATOM a = eval( _2ND(exp),env );  // (eval a)
-    ATOM b = make_proc( make_lambda( NIL,_3RD(exp) ),env );  // (eval b)
-    RETURN3( cons( a,b ) );
-  }
-*/
-  // (delay p) special form since no eval
-  if ( is_delay(exp) ){
-    //ATOM body = _2ND( exp );
-    ATOM body = _REST( exp );
-    ATOM form = NIL;
-    ATOM lamb = make_lambda( form,body );
-    ATOM proc = make_proc( lamb,env );
-    //PEEK( "delay",proc );
-    //exit(1);
-    RETURN3( proc ); 
-  }
   // (lambda (x) (car x)) special form since no eval
   if ( is_lambda(exp) ){
     ATOM proc = make_proc( exp,env );  // eg. ((lambda (x) (car x)) env G)
-    //SYM_PEEK( "lambda",proc );
-    //exit(1);
     RETURN3( proc );
   }
   // (progn e1 e2 ... en)  eg. (progn (car x) (car y))
@@ -657,42 +521,25 @@ ATOM apply(ATOM proc, ATOM args){  // ((lambda (x) (car x)) env .. G)
   //PEEK( "",args );
   if ( is_proc(proc) ){  // FIXME: not a lambda, but a closure
     ATOM func = proc_lambda( proc );
-  //if ( is_primitive( car(proc) ) ){
   if ( is_primitive( func ) ){
     //PEEK( "Primitive",proc );
     //PEEK( "Primitive",args );
-    //ATOM prim = prim_proc_primitive( proc );
-    //ATOM prim = proc_lambda( proc );
     ATOM form = primitive_form( func );
     ATOM cfun = primitive_cfun( func );
-    //ATOM fEnv = prim_proc_env( proc );
     ATOM fEnv = proc_env( proc );
-    //PEEK( "Primitive",fEnv );
     ATOM alst = pair( form,args ) ; // make (k.v) pairs for formal arguements
-    //PEEK( "Primitive",alst );
     ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
-    //PEEK( "Primitive",eEnv );
     ATOM (*fn)() = primFns[ get_num(cfun) ];  // cfun is index to primitive table
     ATOM res = (*fn)( args,eEnv );  // special primitive function must process args
-    //PEEK( "Primitive",res );
     RETURN3( res );
   }
-//  if ( is_lambda( car(proc)) ){  // FIXME: not a lambda, but a closure
-  //if ( is_proc(proc) ){  // FIXME: not a lambda, but a closure
   if ( is_lambda(func) ){  // FIXME: not a lambda, but a closure
-    //ATOM lamb = proc_lambda( func );
     ATOM form = lambda_form( func );  // (x)
     ATOM body = lambda_body( func );  // (car x) FIXME: single or list?
-    //PEEK( "",body );
     ATOM fEnv = proc_env( proc );  // get env procedure was defined in
-    //PEEK( "Procedure",fEnv );
     ATOM alst = pair( form,args ) ; // make ((k.v)...) pairs for formal arguements
-    //PEEK( "Procedure",alst );
     ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
-    //PEEK( "Procedure",eEnv );
     ATOM res  = evalseq( body,eEnv  );  // eval sequence in extended env
-    //ATOM res = eval( body,eEnv  );  // was, eval procedure in extended env
-    //PEEK( "Procedure",res );
     RETURN3( res );
   }
   EXIT( "Unknown function",func );
@@ -714,7 +561,7 @@ ATOM _global_save;
 int _prevMaxCount = 0;
 
 ATOM repl(){                            // read eval print loop
-  ATOM ret;  // return value
+  ATOM ret;
   fprintf( stderr,"\nStart REPL...\n" );
   while TRUE{
     int _used = _usedPairCount;
@@ -733,8 +580,8 @@ ATOM repl(){                            // read eval print loop
     //fputs( "Print: ", stderr );
     printa( ret );
     PEEK( "Print:",ret );
-    //_cm_check_mem();
-    fprintf( stderr,"Result size = %d\n",size( ret ) );
+    //fprintf( stderr,"Result size = %d\n",size( ret ) );
+    /*
     if ( is_symbol( ret ) ){
       PEEK( "symbol ",ret );
       ATOM kvp = assoc( ret,gEnv );
@@ -744,38 +591,13 @@ ATOM repl(){                            // read eval print loop
         fprintf( stderr,"Result true size = %d\n",size( kvp ) );
       }
     }
-
-    GLOBAL_KEEP3( NIL );
-    int _deltaUsed = _usedPairCount-_used;
-    fprintf( stderr,"Pairs increased by %d\n",_deltaUsed );
-    _ms( gEnv );
-    _deltaUsed = _usedPairCount-_used;
-    fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
-    /*
-    if ( _usedPairMaxCount > _prevMaxCount){
-      fprintf( stderr,"Pairs increased by %d",_usedPairMaxCount-_prevMaxCount );
-      _prevMaxCount = _usedPairMaxCount;
-      fprinta( stderr,exp );
-      fprintf( stderr,"  ->  " );
-      fprinta( stderr,ret );
-      fprintf( stderr,"\n" );
-      //fprintf( stderr,"      Free=%d\n",_freePairCount  );
-      fprintf( stderr,"      Used=%d\n",_usedPairCount  );
-      fprintf( stderr,"  Max Used=%d\n",_usedPairMaxCount  );
-      fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
-      fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
-      fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
-      fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
-      fprintf( stderr,"Running GC...\n" );
-      _ms( gEnv );
-      fprintf( stderr,"      Used=%d\n",_usedPairCount  );
-      fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
-      fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
-      fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
-      fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
-    }
     */
-    //_cm_check_mem();
+    GLOBAL_KEEP3( NIL );
+    //int _deltaUsed = _usedPairCount-_used;
+    //fprintf( stderr,"Pairs increased by %d\n",_deltaUsed );
+    //_ms( gEnv );
+    //_deltaUsed = _usedPairCount-_used;
+    //fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
     _ms( gEnv );
     //_cm_check_mem();
     puts( "" );
@@ -783,7 +605,7 @@ ATOM repl(){                            // read eval print loop
   return ret;                             // return last thing
 }
 
-int main(){  // clang bug
+int main(){
   fprintf( stderr,"\n\n\n\n\n\n\n\n\n\nStart\n" );
   boot();
   in = stdin;
