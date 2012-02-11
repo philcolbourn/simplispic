@@ -1,6 +1,6 @@
 
-(if pc-scheme.lib (disperr "Already loaded") 
-  (load "pc-scheme.lib"))  ;; need a lot to make these tests work
+(if pc-scheme.sim (disperr "Already loaded") 
+  (load "pc-scheme.sim"))  ;; need a lot to make these tests work
 
 
 ; setup matching scheme environment

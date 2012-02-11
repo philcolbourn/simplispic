@@ -1,0 +1,45 @@
+"Loading a associative lists ADTs..."
+
+(define pc-adt-alist.sim #t)
+
+; associative list ((k . v) (k . v) ...)
+
+(define make-alist (lambda (keys vals)
+  (cond ((null? keys) (if (null? vals) '() (make-alist "Not enough keys for values" vals)))
+        ((atom? keys) (list (make-kvp keys vals)) )  ; key=(v v ...)
+        ((null? vals) (list (make-kvp (car keys) '())
+                            (make-alist (cdr keys) '())) )  ; missing values are ()
+        (else (list (make-kvp (car keys) (car vals))
+                    (make-alist (cdr keys) (cdr vals)))  )) 
+))
+
+(define extend-alist (lambda (kvp alst) (cons kvp alst)))
+
+(define alist-assoc-gen (lambda (match? key alst)
+  (define scan (lambda (a)
+    (cond ((null? a) #f)
+          ((match? key (kvp-key (car a))) (car a))
+          (else (scan (cdr a)))  )  ))
+  (scan alst)  ))
+
+;(define alist-assoc (lambda (key alst)
+;  (cond ((null? alst) #f)
+;        ((equal? key (kvp-key (car alst))) (car alst))
+;        (else (alist-assoc key (cdr alst)))  )  ))
+
+(define alist-assoc (lambda (key alst) (alist-assoc-gen equal? key alst)))
+(define alist-assq (lambda (key alst) (alist-assoc-gen eq? key alst)))
+(define alist-assv (lambda (key alst) (alist-assoc-gen eqv? key alst)))
+
+(define alist-lookup (lambda (key alst)
+  ;(displayn "alist-lookup  key=[" key "]  alst=[" alst "]")
+  (cond ((null? alst) key)
+        ((equal? key (kvp-key (car alst))) (kvp-val (car alst)))
+        ;((eq? key (kvp-key (car alst))) (kvp-val (car alst)))
+        (else (alist-lookup key (cdr alst)))  )))
+  
+(define assoc alist-assoc)
+(define assq alist-assq)
+(define assv alist-assv)
+
+

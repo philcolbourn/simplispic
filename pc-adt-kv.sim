@@ -1,0 +1,22 @@
+"Loading a key-value ADTs..."
+
+(define pc-adt-kv.sim #t)
+
+; key-value pairs (key . value)
+
+(define make-kvp (lambda (key val) (cons key val)))
+(define kvp-key (lambda (kvp) (car kvp)))
+(define kvp-val (lambda (kvp) (cdr kvp)))
+(define kvp? pair?)
+
+; key-value lists (key value) - uses 1 extra pair
+
+(define make-kvl (lambda (key val) (list key val)))
+(define kvl-key (lambda (kvl) (car kvl)))
+(define kvl-val (lambda (kvl) (cadr kvl)))
+(define kvl? list?)
+
+;;;;;;;;;; keep last
+
+(display "key-value ADTs loaded.") (newline)
+

@@ -54,7 +54,12 @@
 (define symbol? (lambda (s) (eq? (type s) SYMBOL)))
 
 ;(define constant? constantp)
-;(define constant? (lambda (c) (eq? (type s) CONSTANT)))
+(define constant? (lambda (c) (eq? (type c) CONSTANT)))
+(constant? #t)
+(constant? #f)
+(constant? '())
+;.
+(exit 1)
 
 ;(define string? stringp)
 (define string? (lambda (s) (eq? (type s) STRING)))
@@ -74,13 +79,14 @@
 ;(define atom? atomp)
 (define atom? (lambda (a)
   (if (null? a) #t
-      (if (symbol? a) #t
-          (if (number? a) #t
-              (if (string? a) #t
-                  (char? a)  ))))  ))
+  (if (symbol? a) #t
+  (if (constant? a) #t
+  (if (number? a) #t
+  (if (string? a) #t
+      (char? a)  )))))  ))
                   
-(define boolean? (lambda (x)
-  (if (eq? x #t) #t (eq? x #f)) ))
+(define boolean? (lambda (b)
+  (if (eq? b #t) #t (eq? b #f)) ))
 
 (define false? (lambda (b) (eq? b #f)))
 (define true? (lambda (b) (not (false b))))
@@ -153,8 +159,8 @@
         (display (car args)) 
         (apply displayn (cdr args))  ))))
 
-(load "pc-adt-kv.lib")
-(load "pc-adt-alist.lib")
+(load "pc-adt-kv.sim")
+(load "pc-adt-alist.sim")
 
 (define list-ref (lambda (a n)
   (cond ((null? a) ())

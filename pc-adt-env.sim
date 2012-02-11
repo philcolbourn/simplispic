@@ -1,0 +1,9 @@
+"Loading simplispic core..."
+
+(define env-assoc (lambda (sym env)
+  (if (null? env) 
+      #f
+      (let ((kvp (assoc sym (car env))))
+           (if kvp kvp (env-assoc sym (cdr env)))  ))  ))
+
+

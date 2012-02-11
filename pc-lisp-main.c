@@ -94,40 +94,34 @@ ATOM _bad_primative_fn(){
   exit(1);
 }
 
-#define REGISTER_PRIMITIVES_0(i,n)                               \
-{                                                                \
-  /**/MARK3;/**/                                                 \
-  primFns[i] = prim_##n;                                         \
-  ATOM prim = eval(                                              \
-    readString("(define " #n " (primitive () " #i "))"),         \
-    gEnv );                                                      \
-  /**/PEEK( "",prim );/**/                                   \
-  /*KEEP3( cdr( prim ) );/**/   /* correct off all are defines*/ \
-  /**/KEEP3( NIL );/**/         /* correct iff all are defines*/ \
+#define REGISTER_PRIMITIVES_0(i,name,sim_name){                            \
+  /**/MARK3;/**/                                                           \
+  primFns[i] = prim_##name;                                                \
+  ATOM prim = eval(                                                        \
+    readString("(define " sim_name " (primitive () " #i "))"),gEnv );      \
+  /**/PEEK( "",prim );/**/                                                 \
+  /*KEEP3( cdr( prim ) );/**/   /* correct off all are defines*/           \
+  /**/KEEP3( NIL );/**/         /* correct iff all are defines*/           \
 }
 
-#define REGISTER_PRIMITIVES_1(i,n)                               \
-{                                                                \
-  /**/MARK3;/**/                                                 \
-  primFns[i] = prim_##n;                                         \
-  ATOM prim = eval(                                              \
-    readString("(define " #n " (primitive (a) " #i "))"),        \
-    gEnv );                                                      \
-  /**/PEEK( "",prim );/**/                                   \
-  /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/  \
-  /**/KEEP3( NIL );/**/        /* correct iff all are defines*/  \
+#define REGISTER_PRIMITIVES_1(i,name,sim_name){                            \
+  /**/MARK3;/**/                                                           \
+  primFns[i] = prim_##name;                                                \
+  ATOM prim = eval(                                                        \
+    readString("(define " sim_name " (primitive (a) " #i "))"),gEnv );     \
+  /**/PEEK( "",prim );/**/                                                 \
+  /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/            \
+  /**/KEEP3( NIL );/**/        /* correct iff all are defines*/            \
 }
 
-#define REGISTER_PRIMITIVES_2(i,n)                               \
-{                                                                \
-  /**/MARK3/**/;                                                 \
-  primFns[i] = prim_##n;                                         \
-  ATOM prim = eval(                                              \
-    readString( "(define " #n " (primitive (a b) " #i "))"),     \
-    gEnv );                                                      \
-  /**/PEEK( "",prim );/**/                                   \
-  /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/  \
-  /**/KEEP3( NIL );/**/        /* correct iff all are defines*/  \
+#define REGISTER_PRIMITIVES_2(i,name,sim_name){                            \
+  /**/MARK3/**/;                                                           \
+  primFns[i] = prim_##name;                                                \
+  ATOM prim = eval(                                                        \
+    readString( "(define " sim_name " (primitive (a b) " #i "))"),gEnv );  \
+  /**/PEEK( "",prim );/**/                                                 \
+  /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/            \
+  /**/KEEP3( NIL );/**/        /* correct iff all are defines*/            \
 }
 
 void boot(){
@@ -193,49 +187,52 @@ void boot(){
   //null_env       = readString( "(define null-environment )" );
 
   fputs( "Create primitive procedures...\n",stderr );
-  REGISTER_PRIMITIVES_1(  1,car     );
-  REGISTER_PRIMITIVES_1(  2,cdr     );
-  REGISTER_PRIMITIVES_2(  3,cons    );
-  REGISTER_PRIMITIVES_2(  4,iadd    );
-  REGISTER_PRIMITIVES_2(  5,isub    );
-  REGISTER_PRIMITIVES_2(  6,imul    );
-  REGISTER_PRIMITIVES_2(  7,idiv    );
-  REGISTER_PRIMITIVES_2(  8,eqp     );
-  REGISTER_PRIMITIVES_2(  9,equalp  );
-  REGISTER_PRIMITIVES_1( 10,pairp   );
-  REGISTER_PRIMITIVES_1( 11,listp   );
-  REGISTER_PRIMITIVES_2( 12,ilt     );
-  REGISTER_PRIMITIVES_2( 13,igt     );
-  REGISTER_PRIMITIVES_2( 14,ilte    );
-  REGISTER_PRIMITIVES_2( 15,igte    );
-  REGISTER_PRIMITIVES_2( 16,ieq     );
-  REGISTER_PRIMITIVES_1( 17,atomp   );
-  REGISTER_PRIMITIVES_2( 18,and     );
-  REGISTER_PRIMITIVES_2( 19,or      );
-  REGISTER_PRIMITIVES_2( 20,eval    );
-  //REGISTER_PRIMITIVES_1( 21,eval1   );
-  REGISTER_PRIMITIVES_0( 22,read    );
-  REGISTER_PRIMITIVES_1( 23,display );
-  REGISTER_PRIMITIVES_1( 24,printa  );
-  REGISTER_PRIMITIVES_1( 25,nullp   );
-  REGISTER_PRIMITIVES_2( 26,imod    );
-  REGISTER_PRIMITIVES_2( 27,ishl    );
-  REGISTER_PRIMITIVES_2( 28,ishr    );
-  REGISTER_PRIMITIVES_1( 31,procp   );
-  REGISTER_PRIMITIVES_2( 32,set_car );
-  REGISTER_PRIMITIVES_2( 33,set_cdr );
-  //REGISTER_PRIMITIVES_1( 34,set     );
-  REGISTER_PRIMITIVES_1( 34,printerr);
-  REGISTER_PRIMITIVES_1( 35,exita   );
-  REGISTER_PRIMITIVES_1( 36,disperr );
-  REGISTER_PRIMITIVES_1( 37,charp   );
-  REGISTER_PRIMITIVES_1( 38,numberp   );
-  REGISTER_PRIMITIVES_1( 39,symbolp   );
-  REGISTER_PRIMITIVES_1( 40,constantp   );
-  REGISTER_PRIMITIVES_1( 41,stringp   );
-  REGISTER_PRIMITIVES_1( 42,sym_to_str   );
-  REGISTER_PRIMITIVES_2( 43,str_ref   );
-  REGISTER_PRIMITIVES_1( 44,string_length   );
+  REGISTER_PRIMITIVES_1(  1,car           ,"car"             );
+  REGISTER_PRIMITIVES_1(  2,cdr           ,"cdr"             );
+  REGISTER_PRIMITIVES_2(  3,cons          ,"cons"            );
+  REGISTER_PRIMITIVES_2(  4,iadd          ,"iadd"            );
+  REGISTER_PRIMITIVES_2(  5,isub          ,"isub"            );
+  REGISTER_PRIMITIVES_2(  6,imul          ,"imul"            );
+  REGISTER_PRIMITIVES_2(  7,idiv          ,"idiv"            );
+  REGISTER_PRIMITIVES_2(  8,eqp           ,"eq?"             );
+  REGISTER_PRIMITIVES_2(  9,equalp        ,"equal?"          );  // FIXME - make native
+  REGISTER_PRIMITIVES_1( 10,pairp         ,"pair?"           );
+  REGISTER_PRIMITIVES_1( 11,listp         ,"list?"           );  // FIXME - make native
+  REGISTER_PRIMITIVES_2( 12,ilt           ,"<"               );
+  REGISTER_PRIMITIVES_2( 13,igt           ,">"               );
+  REGISTER_PRIMITIVES_2( 14,ilte          ,"<="              );
+  REGISTER_PRIMITIVES_2( 15,igte          ,">="              );
+  REGISTER_PRIMITIVES_2( 16,ieq           ,"="               );
+//REGISTER_PRIMITIVES_1( 17,atomp         ,"atom?"           );
+  REGISTER_PRIMITIVES_2( 18,and           ,"and"             );
+//REGISTER_PRIMITIVES_2( 19,or            ,"or"              );
+  REGISTER_PRIMITIVES_2( 20,eval          ,"eval"            );
+//REGISTER_PRIMITIVES_1( 21,eval1         ,"eval1"           );
+  REGISTER_PRIMITIVES_0( 22,read          ,"read"            );
+  REGISTER_PRIMITIVES_1( 23,display       ,"display"         );
+  REGISTER_PRIMITIVES_1( 24,printa        ,"print"           );
+//REGISTER_PRIMITIVES_1( 25,nullp         ,"null?"           );
+  REGISTER_PRIMITIVES_2( 26,imod          ,"imod"            );
+  REGISTER_PRIMITIVES_2( 27,ishl          ,"<<"              );
+  REGISTER_PRIMITIVES_2( 28,ishr          ,">>"              );
+  REGISTER_PRIMITIVES_1( 31,procp         ,"proc?"           );
+  REGISTER_PRIMITIVES_2( 32,set_car       ,"set-car!"        );
+  REGISTER_PRIMITIVES_2( 33,set_cdr       ,"set-cdr!"        );
+//REGISTER_PRIMITIVES_1( 34,set           ,"set"             );
+  REGISTER_PRIMITIVES_1( 34,printerr      ,"printerr"        );
+  REGISTER_PRIMITIVES_1( 35,exita         ,"exit"            );
+  REGISTER_PRIMITIVES_1( 36,disperr       ,"disperr"         );
+//REGISTER_PRIMITIVES_1( 37,charp         ,"char?"           );
+//REGISTER_PRIMITIVES_1( 38,numberp       ,"number?"         );
+//REGISTER_PRIMITIVES_1( 39,symbolp       ,"symbol?"         );
+//REGISTER_PRIMITIVES_1( 40,constantp     ,"constant?"       );
+//REGISTER_PRIMITIVES_1( 41,stringp       ,"string?"         );
+  REGISTER_PRIMITIVES_1( 42,sym_to_str    ,"symbol->string"  );
+  REGISTER_PRIMITIVES_1( 43,str_to_sym    ,"string->symbol"  );
+  REGISTER_PRIMITIVES_2( 44,str_ref       ,"string-ref"      );
+  REGISTER_PRIMITIVES_1( 45,string_length ,"string-length"   );
+  REGISTER_PRIMITIVES_1( 46,get_type_tag  ,"type"            );
+  PEEK( "",gEnv );
   
   fputs( "Booted.\n",stderr );
   //KEEP3(gEnv);  // FAILS
@@ -277,8 +274,15 @@ ATOM set( ATOM var,ATOM val,ATOM env ){
 ATOM pair( ATOM keys,ATOM vals ){ return make_alist( keys,vals ); }
 
 /*
+
+
 (define assoc (lambda (sym env)
-  
+  (if (null? env) 
+      #f
+      (let ((kvp (atlist-assoc sym (car env))))
+           (if kvp kvp (assoc sym (cdr env)))  ))))
+  )
+        
 ))
 */
 

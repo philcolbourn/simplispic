@@ -63,6 +63,7 @@ extern STRING strings[STR_SIZE];
 extern int     freeStr;
 void string_init();
 ATOM sym_to_str( ATOM sym );
+ATOM str_to_sym( ATOM str );
 int get_str_len( ATOM str );
 ATOM str_ref( ATOM str,ATOM num );
 
@@ -239,9 +240,8 @@ void string_init(){
   strings[ freeStr ].len = 0;  // FIXME: why?
 }
 
-ATOM sym_to_str( ATOM sym ){
-  return make_str( get_sym(sym) );
-}
+ATOM sym_to_str( ATOM sym ){ return make_str( get_sym(sym) ); }
+ATOM str_to_sym( ATOM str ){ return make_sym( get_str(str) ); }
 
 inline int get_str_len( ATOM str ){
   int s = get_str(str);

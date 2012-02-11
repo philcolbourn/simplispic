@@ -1,4 +1,5 @@
 "Loading a Toy Scheme Macros..."
+
 (define pc-scheme.mac #t)
 
 ;(define warn (lambda (mess name atom) (cons mess (cons name atom)) ))
@@ -9,27 +10,13 @@
 ;(define requires (lambda (dep)
 ;  (if dep (displayn dep "loaded.") (load dep))))
 
-;(requires "pc-adt-kv.lib")
+;(requires "pc-adt-kv.sim")
 
 (define indent (lambda (n)
   (if (= n 0) '() (progn (print "  ") (indent (- n 1))))  ))
 
 (define indent-level 0)
 
-; display args separated by a leading space 
-
-(define displayn (lambda args
-  (if (null? args) 
-      (display "\n") 
-      (progn 
-        (display " ")
-        (display (car args)) 
-        (apply displayn (cdr args))  ))))
-
-(define peek (lambda (mess . args)
-  ;(indent indent-level) 
-  (display mess)
-  (displayn args)  ))
 
 ; define or match a symbol
 
@@ -47,8 +34,34 @@
       (if (eq? (symbol-ref tem 0) #\?) 
           (if (> (symbol-length tem) 1) #t #f) 
           #f  )
-      #f  )
+      #f  )  ))
+
+(define char->num '(
+  (#\0 . 0)
+  (#\1 . 1)
+  (#\2 . 2)
+  (#\3 . 3)
+  (#\4 . 4)
+  (#\5 . 5)
+  (#\6 . 6)
+  (#\7 . 7)
+  (#\8 . 8)
+  (#\9 . 9)
 ))
+
+; hack to convert a pattern variable to a number
+;
+(define var->ref (lambda (var)
+  (if (symbol? var)
+      (if (eq? (symbol-ref var 0) #\?) 
+          (alist-lookup (symbol-ref var 1) char->num)
+          #f  )
+      #f  )  ))
+      
+;(symbol-ref '?5 1)      
+;(alist-lookup #\3 char->num)
+;(var->ref '?0)
+;(exit 1)
 
 ; does template match expression given environment
 
@@ -78,10 +91,10 @@
 
 (define pn (lambda (a) (displayn "-->" a) a))
 
-(load "pc-macro-transformers.lib")
+(load "pc-macro-transformers.sim")
 
 (define make-exp (lambda (tem env)
-  ;(displayn "make-exp  tem=[" tem "]  env=[" env "]")
+  (displayn "make-exp  tem=[" tem "]  env=[" env "]")
   (define pn I)
   (cond 
         ( (null? tem)  '() )
@@ -90,8 +103,30 @@
         ( (pair? tem)  (eval-macro (pn (cons (make-exp (car tem) env) 
                                          (make-exp (cdr tem) env)  )  )
                        ) )
-        (else          (display "unknown\n") #f )  )
+        (else          (displayn "make-exp: unknown template element" tem) #f )  )
 ))
+
+; make expression using positional values
+; (add ?1 ?2) (3 4) -> (add 3 4)
+;
+(define make-expn (lambda (tem . ags)
+  (displayn "make-expn  tem=[" tem "]  ags=[" ags "]")
+  (define make-expn-h (lambda (tem)
+    ;(displayn "make-expn-h  tem=[" tem "]")
+    (cond 
+        ( (null? tem)  '() )
+        ( (var? tem)   (list-ref ags (var->ref tem)) )
+        ( (atom? tem)  tem  )
+        ( (pair? tem)  (cons (make-expn-h (car tem)) 
+                             (make-expn-h (cdr tem))
+                       ) )
+        (else          (displayn "make-expn: unknown template element" tem) #f )  )
+  ))
+  (make-expn-h tem)
+))
+
+(make-expn '(add ?0 ?1 ?2) 11 22 33)
+;(exit 1)
 
 ; macro is (pattern template)
 ;
@@ -170,7 +205,9 @@
 ;f4
 
 ;(exit 1)
-
+(and)
+(and 1)
+(exit 1)
 (? 6 '(let ((x 2) (y 3)) (* x y)))
 (? 35 '(let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (* z x))))
 (? 70 '(let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x))))

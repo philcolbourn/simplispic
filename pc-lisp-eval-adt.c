@@ -88,7 +88,7 @@ int is_eval1      ( ATOM exp ){ return match_taglist( exp,kw_eval1 )      ; }
 int is_apply      ( ATOM exp ){ return match_taglist( exp,kw_apply )      ; }
 int is_load       ( ATOM exp ){ return match_taglist( exp,kw_load )       ; }
 int is_read       ( ATOM exp ){ return match_taglist( exp,kw_read )       ; }
-int is_delay      ( ATOM exp ){ return match_taglist( exp,kw_delay )      ; }
+//int is_delay      ( ATOM exp ){ return match_taglist( exp,kw_delay )      ; }
 int is_eval_list  ( ATOM exp ){ return match_taglist( exp,kw_list )       ; }
 int is_if         ( ATOM exp ){ return match_taglist( exp,kw_if )         ; }
 int is_cond       ( ATOM exp ){ return match_taglist( exp,kw_cond )       ; }

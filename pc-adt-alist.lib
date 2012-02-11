@@ -29,21 +29,6 @@
         ((eq? key (kvp-key (car alst))) (kvp-val (car alst)))
         (else (alist-lookup key (cdr alst)))  )))
   
-(define assocv2 (lambda (sym env)
-  (cond ((null? env) #f)
-        (else
-          ((lambda (kvp)
-                   (if kvp 
-                       kvp 
-                       (assoc sym (cdr env))  ))
-           (alist-assoc sym (car env)))  ))))
 
-(define assoc (lambda (sym env)
-  (cond ((null? env) #f)
-        (else
-          (define kvp (alist-assoc-fail sym (car env) #f)) 
-          (if kvp 
-              kvp 
-              (assoc sym (cdr env))  )))))
 
 
