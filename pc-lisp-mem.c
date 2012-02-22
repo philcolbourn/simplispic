@@ -11,7 +11,7 @@
 
 // HEADER
 
-#define SIZE     800000       // max size of cell storage
+#define SIZE     80000       // max size of cell storage
 #define SYM_SIZE 10000       // max symbol list size
 #define SYM_LEN  32          // max symbol length including NUL
 #define STR_SIZE 10000       // max symbol list size
@@ -39,8 +39,9 @@ typedef struct{
   ATOM cdr;
   ATOM mem;
   ATOM bak;
-  CHAR gcm;
+  //CHAR gcm;
   CHAR mrk;
+  CHAR lop;
   CHAR pmk; 
   int  ref;
 } PAIR;
@@ -50,8 +51,11 @@ extern ATOM   freePairs;
 extern ATOM   usedPairs;
 extern ATOM   lastUsedPair;
 
+       void pair_init();
+       void string_init();
 
 // Strings and Symbols
+//
 typedef struct{
   char *text;
   int len;
@@ -60,12 +64,28 @@ typedef struct{
 } STRING;
 
 extern STRING strings[STR_SIZE];
-extern int     freeStr;
-void string_init();
-ATOM sym_to_str( ATOM sym );
-ATOM str_to_sym( ATOM str );
-int get_str_len( ATOM str );
-ATOM str_ref( ATOM str,ATOM num );
+extern int    freeStr;
+       void   string_init();
+       ATOM   sym_to_str( ATOM sym );
+       ATOM   str_to_sym( ATOM str );
+       int    get_str_len( ATOM str );
+       ATOM   str_ref( ATOM str,ATOM num );
+
+static void _cm_mark_all_pairs( int m );
+static void _cm_ensure_all_pairs_not_marked( int m );
+static void _cm_clear_marks_on_free_pairs( int m );
+static void _cm_clear_marks_on_used_pairs( int m );
+static void _cm_clear_marks_on_atom( ATOM a,int m );
+
+       void _cm_check_mem();
+       void _cm_check_mem_leak();
+
+// Primitive functions
+//
+       ATOM  (*primFns[SIZE])();
+       ATOM _bad_primative_fn();
+
+       void  primitive_init();
 
 /*
 typedef union{
@@ -110,23 +130,28 @@ MAKE_ATOM_ADT( bak,BAK );
 
 #define MAKE_CON( val )    ( (ATOM){.conval=(val), .contag=CON} )
 #define MAKE_PAR( val )    ( (ATOM){.parval=(val), .partag=PAR} )
+#define MAKE_MEM( val )    ( (ATOM){.memval=(val), .memtag=MEM} )
 #define MAKE_CHR( val )    ( (ATOM){.chrval=(val), .chrtag=CHR} )
 //#define MAKE_NUM( val )    ( (ATOM){.numval=(val), .numtag=NUM} )
 
-//#define ERR          MAKE_CON( -99)     // error value
+#define EFL          MAKE_CON( 32 )    // end of free list
+#define EUL          MAKE_MEM( 0 )    // start and end of used list
+#define MTY          MAKE_CON( -9 )     // eMpTY cell in memory
+#define NMT          MAKE_CON( 31 )     // pair is unlnked from free and used lists
 
-#define MEM0         MAKE_PAR( 0 )
 #define NIL          MAKE_CON( -1 )     // NIL is an empty list - int=0
 #define FAL          MAKE_CON( 0 )     // !=0
 #define TRU          MAKE_CON( 1 )     // !=0
 
 // ADTs
 
-#define ASSERT_PAIR( par )                                       \
-  EXITIF( ! is_par( par ),"ASSERT_PAIR! requires a pair",par );  \
-  EXITIF( get_val( par )<0,"Negative pair index",par );          \
-  EXITIF( is_null( par ),"Pair is NIL",par );                    \
-  EXITIF( get_val( par )>=SIZE,"Pair index > SIZE",par );
+#define ASSERT_PAIR( p )                                       \
+  EXITIF( is_null( p ),"NIL",p );                              \
+  EXITIF( _is_end_free_list( p ),"end free list",p );          \
+  EXITIF( _is_end_used_list( p ),"end used list",p );          \
+  EXITIF( ! is_par( p ),"ASSERT_PAIR! requires a pair",p );    \
+  EXITIF( get_val( p )<0,"Negative pair index",p );            \
+  EXITIF( get_val( p )>=SIZE,"Pair index >= SIZE",p );
 
 #define PAIRS( p ) pairs[ get_par(p) ]
 
@@ -140,22 +165,27 @@ MAKE_PAIR_SET_AND_GET( ATOM,car );
 MAKE_PAIR_SET_AND_GET( ATOM,cdr );
 MAKE_PAIR_SET_AND_GET( ATOM,mem );
 MAKE_PAIR_SET_AND_GET( ATOM,bak );
-MAKE_PAIR_SET_AND_GET( CHAR,gcm );
+//MAKE_PAIR_SET_AND_GET( CHAR,gcm );
 MAKE_PAIR_SET_AND_GET( CHAR,mrk );
+MAKE_PAIR_SET_AND_GET( CHAR,lop );
 MAKE_PAIR_SET_AND_GET( CHAR,pmk );
 MAKE_PAIR_SET_AND_GET(  int,ref );
 
-
 extern int  _freePairCount;
-ATOM _free_unlink();
-ATOM _free_append( ATOM p );
+       int  _is_end_free_list( ATOM p );
+       int  _is_end_used_list( ATOM p );
+       ATOM _free_unlink();
+       ATOM _free_append( ATOM p );
 
 extern int  _usedPairCount;
 extern int  _usedPairMaxCount;
-ATOM _used_unlink( ATOM p );
-ATOM _used_append( ATOM p );
+       ATOM _used_unlink( ATOM p );
+       ATOM _used_append( ATOM p );
 
-ATOM _remove_next_free();
+       ATOM _remove_next_free();
+       int  _is_free( ATOM p );
+       int  _is_used( ATOM p );
+
 //static ATOM _remove_next_used( ATOM p );
 //static ATOM _move_next_used_last( ATOM p );
 
@@ -190,11 +220,11 @@ MAKE_ATOM_ADT( bak,BAK );
 
 #define MAKE_PAIR_SET_AND_GET( type,name )        \
   type _set_##name( ATOM par,type name ){         \
-    ASSERT_PAIR( par );                           \
+    /*ASSERT_PAIR( par );/**/                     \
     return PAIRS( par ).name = name;              \
   }                                               \
   type _##name( ATOM par ){  /* no null check */  \
-    ASSERT_PAIR( par );                           \
+    /*ASSERT_PAIR( par );/**/                     \
     return PAIRS( par ).name;                     \
   }
 
@@ -202,8 +232,9 @@ MAKE_PAIR_SET_AND_GET( ATOM,car );
 MAKE_PAIR_SET_AND_GET( ATOM,cdr );
 MAKE_PAIR_SET_AND_GET( ATOM,mem );
 MAKE_PAIR_SET_AND_GET( ATOM,bak );
-MAKE_PAIR_SET_AND_GET( CHAR,gcm );
+//MAKE_PAIR_SET_AND_GET( CHAR,gcm );
 MAKE_PAIR_SET_AND_GET( CHAR,mrk );
+MAKE_PAIR_SET_AND_GET( CHAR,lop );
 MAKE_PAIR_SET_AND_GET( CHAR,pmk );
 MAKE_PAIR_SET_AND_GET(  int,ref );
 
@@ -215,17 +246,74 @@ ATOM   freePairs;
 ATOM   usedPairs;
 ATOM   lastUsedPair;
 
+// freePairs -> [|].mem->[|].mem->...->0:[|]
+//
+void pair_init(){
+  int i;
+      PEEK( "",MTY );
+      PEEK( "",EFL );
+      PEEK( "",EUL );
+      PEEK( "",NIL );
+      PEEK( "",TRU );
+      PEEK( "",FAL );
+      PEEK( "",FOR );
+      PEEK( "",REC );
+      PEEK( "",NMT );
+      //exit(1);
+  fputs( "Initialize free pairs...",stderr );
+  for (i=1; i<SIZE; i++){
+    ATOM p = make_par(i);       
+    _set_car( p,MTY );  // do before chaining into freelist
+    _set_cdr( p,MTY );
+    //_set_gcm( p,0 );                       // mark all in use
+    _set_mrk( p,0 );
+    _set_lop( p,0 );
+    _set_ref( p,0 );
+    _set_mem( p,make_mem( (i+1)%SIZE ) );  // chain free cells
+  }
+  fputs( "Done.\n",stderr );
+  fputs( "freePairs --> [1] --> [2] --> ... --> [SIZE-1] --> EFL\n",stderr );
+  freePairs = make_par(1);               // [1] is first free pair
+  _set_mem( make_mem(SIZE-1),EFL );  // end free list
+
+  //recycleSweeper = usedPairs;
+
+  fputs( "usedPairs <==> [0] - circular doubly-linked list.\n",stderr );
+  usedPairs = EUL;               // [0] is used from begining
+  lastUsedPair = usedPairs;
+  _set_mem( usedPairs,usedPairs );  // make circular
+  _set_bak( usedPairs,usedPairs );
+  fputs( "Initialize pairs Done.\n",stderr );
+}
+
+ATOM (*primFns[SIZE])();
+
+ATOM _bad_primative_fn(){
+  fprintf( stderr, "ERROR: Undefined primitive function.\n" );
+  exit(1);
+}
+
+void primitive_init(){
+  int i;
+  fputs( "Initialize primitive storage...",stderr );
+  for (i=0; i<SIZE; i++){
+    primFns[i] = _bad_primative_fn;
+  }
+  fputs( "Done.\n",stderr );
+}
+
 // type storage
 
 STRING strings[STR_SIZE];
 
 // free storage indexes - by convention reserve [0]
 
-int    freeStr = 1;
+int    freeStr=0;
 //int    freeFun = 1;
 
 void string_init(){
   int i;
+  fputs( "Initialize string and symbol storage...",stderr );
   for ( i=0;i<STR_SIZE;i++ ){
     strings[i].text = "UNDEF STR";
     strings[i].len  = 9;
@@ -233,11 +321,15 @@ void string_init(){
     strings[i].ref  = 0;
     //sar[i].val      = 0;
   }
+  fputs( "Done.\n",stderr );
+  fputs( "Creating string and symbol read buffer...",stderr );
   strings[ 0 ].text = malloc( STR_LEN );
   strings[ 0 ].len  = 0;
   strings[ 0 ].ref  = 1; // never gc?
-  EXITIF( strings[ 0 ].text==NULL,"malloc returned NULL!",NIL );
-  strings[ freeStr ].len = 0;  // FIXME: why?
+      EXITIF( strings[ 0 ].text==NULL,"malloc returned NULL!",NIL );
+  fputs( "Done.\n",stderr );
+  freeStr = 1;  // first free string or symbol storage
+  //strings[ freeStr ].len = 0;  // FIXME: why?
 }
 
 ATOM sym_to_str( ATOM sym ){ return make_str( get_sym(sym) ); }
@@ -253,8 +345,8 @@ inline int get_str_len( ATOM str ){
 ATOM str_ref( ATOM str,ATOM ref ){
   //PEEK( "",str );
   //PEEK( "",ref );
-  EXITIF( get_num(ref)<0,"Negative String ref",ref );
-  EXITIF( get_num(ref)>=get_str_len(str),"String ref out of range",ref );
+  //EXITIF( get_num(ref)<0,"Negative String or symbol ref",ref );
+  //EXITIF( get_num(ref)>=get_str_len(str),"String or symbol ref out of range",ref );
   int s = get_str(str);
   if ( s<=0 ){
     s = -s;
@@ -269,55 +361,114 @@ Fundemental memory management functions
 freePairs starts at 1, singly linked using mem
 usedPairs starts at 0, circular doubly linked
 usedPairs is always NIL
-???mem(usedPairs) points to newest pair
+mem(usedPairs) points to newest pair
 */
 
 int _freePairCount    = SIZE-1;
 
+// FIXME: wht happens when last pair is unlinked?
+// Returns next free pair or MEM0 if no free pairs.
+// freePairs = MEM0 when last pair allocated.
+//
 ATOM _free_unlink(){
   _freePairCount--;
   ATOM p = freePairs;             // next free pair 
+      //EXITIF( _freePairCount==0,"Last free pair!",p );
   freePairs = _mem( p );          // unlink from free list
-  //_set_mem( p,NIL );        // optional for now
-  _set_mem( p,MEM0 );        // optional for now
+      //EXITIF( is_eq( freePairs,MEM0 ),"Last free pair!",p );
+      //EXITIF( get_par(p)==(SIZE-1),"Last free pair!",p );
+  _set_mem( p,NMT );        // optional for now
+  _set_bak( p,NMT );        // optional for now
+      //EXITIF( _is_free(p),"New free pair is still on free list!",p );
+      //EXITIF( _is_used(p),"New free pair is already on used list!",p );
   return p;
 }
 
 ATOM _free_append( ATOM p ){
+      //EXITIF( _is_free(p),"New free pair is already on free list!",p );
+      //EXITIF( _is_used(p),"New free pair is still on used list!",p );
   _freePairCount++;
   _set_mem( p,freePairs );
   freePairs = p;
+  _set_bak( p,MTY );  // FIXME: do something better
+      //EXITIF( ! _is_free(p),"New free pair not added to free list!",p );
+      //EXITIF( _is_used(p),"New free pair still on used list!",p );
   return p;
 }
 
 int _usedPairCount    = 1;      // [0] is always used as circular list ref
 
 ATOM _used_unlink( ATOM p ){  // must be circular list
+      //EXITIF( _is_free(p),"Old used pair is already on free list!",p );
+      //EXITIF( ! _is_used(p),"Old used pair not on used list!",p );
   _usedPairCount--;
   _set_mem( _bak(p),_mem(p) );  // remove from mem list
   _set_bak( _mem(p),_bak(p) );  // remove from bak list
+      //EXITIF( _is_free(p),"Old free pair is already on free list!",p );
+      //EXITIF( _is_used(p),"Old free pair still on used list!",p );
   return p;
 }
 
 int _usedPairMaxCount = 0;
-
+// Append pair to used list
+// Afterwards, _mem(usedPairs) --> latest pair - not really append
+// usedPairs should never change
+//
 ATOM _used_append( ATOM p ){  // append p after usedPairs
+      //EXITIF( _is_free(p),"New used pair still on free list!",p );
+      //EXITIF( _is_used(p),"New used pair already on used list!",p );
   _usedPairCount++;
   if ( _usedPairCount > _usedPairMaxCount )  _usedPairMaxCount=_usedPairCount;
   _set_mem( p,_mem(usedPairs) );
   _set_bak( p,usedPairs );
   _set_mem( usedPairs,p );
   _set_bak( _mem(p),p );
+      //EXITIF( _is_free(p),"New used pair still on free list!",p );
+      //EXITIF( ! _is_used(p),"New used pair not on used list!",p );
   return p;
+}
+
+int _is_end_free_list( ATOM p ){
+  return is_eq( p,EFL );
+}
+
+int _is_end_used_list( ATOM p ){
+  return is_eq( p,EUL );
 }
 
 ATOM _remove_next_free(){
   ATOM p = _free_unlink();          // next free pair 
-  //RETNIF( is_null( freePairs ),"All pairs are used!",freePairs );
-  RETNIF( is_eq( freePairs,MEM0 ),"All pairs are used!",NIL );
+      //EXITIF( _is_free(p),"New free pair still on free list!",p );
+      //EXITIF( _is_used(p),"New free pair already on used list!",p );
+      EXITIF( _is_end_free_list( freePairs ),"All pairs are used!",EFL );
+      //RETNIF( is_eq( freePairs,MEM0 ),"All pairs are used!",MEM0 );
   _used_append( p );
+      //TRACE( p,TVAL );
+      //EXITIF( _is_free(p),"New used pair still on free list!",p );
+      //EXITIF( ! _is_used(p),"New used pair not on used list!",p );
   return p;
 }
+
+int _is_free( ATOM p ){
+  if ( ! is_par(p) ) return FALSE;
+  ATOM f = freePairs;
+  while ( ! _is_end_free_list( f ) ){
+    if ( is_eq( f,p ) ) return TRUE;
+    f = _mem(f);
+  }
+  return FALSE;
+}
+
+int _is_used( ATOM p ){
+  if ( ! is_par(p) ) return FALSE;
+  ATOM f = _mem( usedPairs );
+  while ( ! _is_end_used_list( f ) ){
+    if ( is_eq( f,p ) ) return TRUE;
+    f = _mem(f);
+  }
+  return FALSE;
+}
+
 
 /*
 ATOM makeString(char *buf, int len){
@@ -331,6 +482,92 @@ ATOM makeString(char *buf, int len){
   return a;
 }
 */
+
+// ========================
+
+void _cm_mark_all_pairs( int m ){
+  int i;
+  for ( i=1; i<SIZE; i++ ){
+    _set_mrk( make_par(i),m );  
+  }
+}
+
+// detects used pairs not linked to environment
+// uncollected garbage
+//
+void _cm_ensure_all_pairs_not_marked( int m ){
+  int i,mCount=0,cCount=0;
+  for (i=1; i<SIZE; i++){
+    if ( _mrk( make_par(i) )==m ) mCount++;
+    else
+      if ( _mrk( make_par(i) )!=0 ) cCount++;
+
+        WARNIF( _mrk( make_par(i) )==m,"A pair is still marked!",make_par(i) );
+        //WARNIF( _mrk( make_par(i) )!=0,"A pair is not cleared!",make_par(i) );
+        //EXITIF( mCount>10,"Pairs still marked",make_par(i) );
+        //EXITIF( cCount>10,"Pairs not cleared",make_par(i) );
+  }
+      //EXITIF( mCount>0,"Pairs still marked",make_num(mCount) );
+      //EXITIF( cCount>0,"Pairs not cleared",make_num(cCount) );
+}
+
+
+void _cm_clear_marks_on_free_pairs( int m ){
+  ATOM f = freePairs;
+  while ( ! _is_end_free_list( f ) ){
+        // were WARNIF
+        EXITIF( _ref(f)!=0,"Free pair has non-zero reference count!",f );
+        WARNIF( _mrk(f)!=m,"Free pair not marked!",f );
+    _set_mrk( f,0 );
+    f = _mem(f);
+  }
+}
+    
+void _cm_clear_marks_on_used_pairs( int m ){
+  ATOM u = _mem( usedPairs );
+      EXITIF( _is_end_used_list( u ),"No used pairs!",u);
+  while ( ! _is_end_used_list( u ) ){
+        //PEEK( "",u );
+        EXITIF( _mrk(u)!=m,"Used pair not marked!",u);
+    _set_mrk( u,0 );
+    u = _mem(u);
+  };
+}
+
+// clear marks on all pairs connected to a
+// Stop if a pair is cleared
+//
+void _cm_clear_marks_on_atom( ATOM a,int m ){
+  while ( is_pair(a) ){
+    if ( _mrk(a)!=m ) return;    // no need to go further to avoid loops
+    _set_mrk( a,0 );                     // unmark - keep
+    _cm_clear_marks_on_atom( car(a),m );  // follow car tree
+    a = cdr(a);
+  }
+}
+
+// these should only use mrk to check pair allocations and gc performance
+void _cm_check_mem(){
+      PEEK( "start",NIL );
+      //WARNIF( is_null(freePairs),"freePairs should never be NIL!",freePairs );  // is null when no more free pairs!
+  _cm_mark_all_pairs(99);
+  _cm_clear_marks_on_free_pairs(99);
+  _cm_clear_marks_on_used_pairs(99);
+  _cm_ensure_all_pairs_not_marked(99);  // any leaks?
+      //PEEK( "done",NIL );
+}
+
+void _cm_check_mem_leak(){  // only run in repl after gc
+      PEEK( "start",NIL );
+      //WARNIF( is_null(freePairs),"freePairs should never be NIL!",freePairs );
+  _cm_mark_all_pairs(23);
+  _cm_clear_marks_on_atom( gEnv,23 );  // clear marks in environment
+  //_set_mrk( make_par(0),0 );  // required? yes, but why did it work without it for so long?
+  _cm_clear_marks_on_free_pairs(23);  // fails if a free pair has no mark
+  _cm_ensure_all_pairs_not_marked(23);  // any leaks?
+      PEEK( "done",NIL );
+}
+
 
 #endif
 #endif

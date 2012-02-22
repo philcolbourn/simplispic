@@ -48,7 +48,8 @@ int is_pair( ATOM p ){
 int is_list( ATOM p ){
   //return is_par(p);
   //return is_par(p) && is_pair( cdr(p) );  // breaks pc-list
-  return is_null(p) || ( is_par(p) && is_list( cdr(p) ) );
+  return is_null(p) || is_par(p);  // FIXME: does not work for circular lists
+  //return is_null(p) || ( is_par(p) && is_list( cdr(p) ) );
 }
 
 int is_atom( ATOM p ){

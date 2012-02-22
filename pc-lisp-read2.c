@@ -255,20 +255,22 @@ ATOM readQUOTE(){
 }
 
 ATOM eval_macros( ATOM exp ){
-  //PEEK( "",exp );
+      //PEEK( "",exp );
   ATOM kvp = assoc( kw_eval_macro,gEnv );
-  //PEEK( "",kvp );
+      //PEEK( "",kvp );
   if ( ! is_eq( kvp,FAL ) ){  // macro system booted
     // FIXME: simplify this?
     // exp -> (eval-macro (quote (exp))) - i think
+    MARK3;
     ATOM nexp = cons( kw_eval_macro,cons( cons( kw_quote,cons( exp,NIL ) ),NIL ) );
-    //PEEK( "",exp );
-    //PEEK( "",nexp );
+        //PEEK( "",exp );
+        //PEEK( "",nexp );
     ATOM res = eval( nexp,gEnv );
-    //PEEK( "",res );
-    return res;
+        //PEEK( "",res );
+    RETURN3( res );
+    //return res;
   }
-  //PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
+      //PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
   return exp;
 }
 
@@ -290,8 +292,8 @@ ATOM read_raw(){
 
 ATOM read(){
   ATOM t = read_token();
-  //PEEK( "",t );  
-  //_mem_print_used_pairs( "gEnv",gEnv,_global_save );
+      //PEEK( "",t );  
+      //_mem_print_used_pairs( "gEnv",gEnv,_global_save );
 
   if ( is_eq( t,make_chr(EOF) ) )   return t;
   if ( is_sym(t) )                  return t;

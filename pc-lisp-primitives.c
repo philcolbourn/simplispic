@@ -32,6 +32,7 @@ MAKE_PRIMITIVE_1( exita       );
 MAKE_PRIMITIVE_1( sym_to_str  );
 MAKE_PRIMITIVE_1( str_to_sym  );
 
+
 #define MAKE_PRIMITIVE_2( proc )           \
   ATOM prim_##proc( ATOM args,ATOM env );
 
@@ -48,7 +49,8 @@ MAKE_PRIMITIVE_2( str_ref );
   MAKE_PRIMITIVE_1( proc )  /* register is as well */
 
 MAKE_NUM_PRIMITIVE_1( string_length,get_str_len );
-MAKE_NUM_PRIMITIVE_1( get_type_tag,get_tag      );
+MAKE_NUM_PRIMITIVE_1( get_num_tag,get_tag      );
+MAKE_NUM_PRIMITIVE_1( get_num_val,get_val      );
 
 #define MAKE_OP_2( proc,op )                           \
   ATOM proc( ATOM a,ATOM b );                          \
@@ -72,7 +74,7 @@ MAKE_PRED_OP( igt ,>    );
 MAKE_PRED_OP( ilte,<=   );
 MAKE_PRED_OP( igte,>=   );
 MAKE_PRED_OP( ieq ,==   );
-MAKE_PRED_OP( and ,&&   );
+//MAKE_PRED_OP( and ,&&   );
 //MAKE_PRED_OP( or  ,||   );
 
 // wrap a c predicate function so it returns an atom
@@ -82,7 +84,7 @@ MAKE_PRED_OP( and ,&&   );
 
 MAKE_PRED_1( atomp    ,is_atom   );
 MAKE_PRED_1( listp    ,is_list   );
-MAKE_PRED_1( pairp    ,is_pair   );
+//MAKE_PRED_1( pairp    ,is_pair   );
 //MAKE_PRED_1( nullp    ,is_null   );
 MAKE_PRED_1( procp    ,is_proc   );
 //MAKE_PRED_1( charp    ,is_chr    );
@@ -96,7 +98,7 @@ MAKE_PRED_1( procp    ,is_proc   );
   MAKE_PRIMITIVE_2( pred )  /* register as well */
 
 MAKE_PRED_2( eqp   ,is_eq    );
-MAKE_PRED_2( equalp,equal    );
+//MAKE_PRED_2( equalp,equal    );
 
 #endif
 
@@ -156,6 +158,7 @@ MAKE_PRIMITIVE_2( set_cdr );
 //MAKE_PRIMITIVE_2( set     );
 //MAKE_PRIMITIVE_2( apply   );
 MAKE_PRIMITIVE_2( str_ref );
+//MAKE_PRIMITIVE_2( sym_ref );
 
 #undef MAKE_NUM_PRIMITIVE_1
 
@@ -166,7 +169,8 @@ MAKE_PRIMITIVE_2( str_ref );
   MAKE_PRIMITIVE_1( proc )  /* register is as well */
 
 MAKE_NUM_PRIMITIVE_1( string_length,get_str_len );
-MAKE_NUM_PRIMITIVE_1( get_type_tag,get_tag      );
+MAKE_NUM_PRIMITIVE_1( get_num_tag,get_tag      );
+MAKE_NUM_PRIMITIVE_1( get_num_val,get_val      );
 
 
 #undef MAKE_OP_2
@@ -200,7 +204,7 @@ MAKE_PRED_OP( igt ,>    );
 MAKE_PRED_OP( ilte,<=   );
 MAKE_PRED_OP( igte,>=   );
 MAKE_PRED_OP( ieq ,==   );
-MAKE_PRED_OP( and ,&&   );
+//MAKE_PRED_OP( and ,&&   );
 //MAKE_PRED_OP( or  ,||   );
 
 // wrap a c predicate function so it returns an atom
@@ -213,7 +217,7 @@ MAKE_PRED_OP( and ,&&   );
 
 MAKE_PRED_1( atomp    ,is_atom   );
 MAKE_PRED_1( listp    ,is_list   );
-MAKE_PRED_1( pairp    ,is_pair   );
+//MAKE_PRED_1( pairp    ,is_pair   );
 //MAKE_PRED_1( nullp    ,is_null   );
 MAKE_PRED_1( procp    ,is_proc   );
 //MAKE_PRED_1( charp    ,is_chr    );
@@ -232,7 +236,7 @@ MAKE_PRED_1( procp    ,is_proc   );
   MAKE_PRIMITIVE_2( pred )  /* register as well */
 
 MAKE_PRED_2( eqp   ,is_eq    );
-MAKE_PRED_2( equalp,equal    );
+//MAKE_PRED_2( equalp,equal    );
 
 #endif
 #endif

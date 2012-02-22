@@ -21,7 +21,7 @@
 enum   {DUMP=0, PRINT=1, DISPLAY=2};
 typedef char  *CSTRING;
 extern CSTRING  printFormat[][3];  // how we format ATOMs when printing
-extern int pmark;
+extern int      pmark;
 
 ATOM    fprinta ( FILE *f,ATOM a );
 ATOM    fprinta1( FILE *f,ATOM a,char *lsep,int fmt );
@@ -103,9 +103,10 @@ ATOM display( ATOM a ){
 
 void _print_flag( FILE *f,ATOM p ){
   //if ( pmk(p)!=pmark ) fprintf( f,"{%d}",pmk(p) );
-  if ( _gcm(p)==1 ) fputc( '*',f );
-  if ( _gcm(p)==2 ) fputc( '_',f );
-  if ( _gcm(p)==2 ) fputc( '!',f );
+  //if ( _gcm(p)==1 ) fputc( '*',f );
+  //if ( _gcm(p)==2 ) fputc( '_',f );
+  //if ( _gcm(p)==2 ) fputc( '!',f );
+  if ( _ref(p)==0 ) fputc( '*',f );
 }
 
 ATOM fprintSTR( FILE *f,ATOM a,int fmt ){
@@ -129,6 +130,10 @@ ATOM fprintCON( FILE *f,ATOM a,int fmt ){
   if ( is_eq( a,END ) ){ fprintf( f,"?END?"      ); return a; }
   if ( is_eq( a,MTY ) ){ fprintf( f,"?UNDEF?"    ); return a; }
   if ( is_eq( a,REC ) ){ fprintf( f,"!RECYCLED!" ); return a; }
+  //if ( is_eq( a,FOR ) ){ fprintf( f,"!FORCE RECYCLED!" ); exit(1); return a; }
+  if ( is_eq( a,NMT ) ){ fprintf( f,"!FREE->USED!" ); exit(1); return a; }
+  if ( is_eq( a,EFL ) ){ fprintf( f,"!END FREE LIST!" ); exit(1); return a; }
+  if ( is_eq( a,EUL ) ){ fprintf( f,"!END USED LIST!" ); exit(1); return a; }
   fprintf( f,printFormat[ CON ][ fmt ],get_con(a) );
   return a;
 }
@@ -141,9 +146,8 @@ ATOM fprintCHR( FILE *f,ATOM a,int fmt ){
 }
 
 ATOM fprintPAR( FILE *f,ATOM a,char *lsep,int fmt ){
-  //if ( is_eq( a,NIL ) ){ fprintf( f,"()"         ); return a; }
-  //EXITIF( get_par(a)<=0,"Negative list index",a );
-  EXITIF( get_par(a)<0,"Negative list index",a );
+      EXITIF( get_par(a)<=0,"Negative list index",a );
+      //fprintf( f,printFormat[ get_tag(a) ][ fmt ],get_val(a) );  // print index
   if ( is_lambda(a) ){  // (lambda (x) (car x) env G)
     fputs( "<",f ); 
     fprintp( f,a,SP,"",fmt );
@@ -203,6 +207,7 @@ LOOP:
   if ( is_null(t) ) return p;        // end of list so done
   if ( sep>0 ) fputc( sep,f );  // otherwise print separator
   if ( is_pair(t) ){  // handle special list elements ((l) env . (E))
+        //fprintf( f,printFormat[ get_tag(t) ][ fmt ],get_val(t) );  // print index
     if ( is_eq( t,gEnv ) ){  // don't print global env if cdr of pair 
       _print_flag( f,t );
       fputc( 'g',f ); 

@@ -36,9 +36,10 @@ int     is_proc    ( ATOM proc );
 ATOM    proc_lambda( ATOM proc );
 ATOM    proc_env   ( ATOM proc );
 
-ATOM    make_primitive( ATOM form,ATOM cfun );
+ATOM    make_primitive( ATOM form,ATOM name,ATOM cfun );
 int     is_primitive  ( ATOM prim );
 ATOM    primitive_form( ATOM prim );
+ATOM    primitive_name( ATOM prim );
 ATOM    primitive_cfun( ATOM prim );
 
 ATOM    make_alist    ( ATOM keys,ATOM vals );
@@ -117,80 +118,80 @@ a,(1 2) -> ( (a . (1 2)) )
                             (make-alist (cdr keys) (cdr vals)))  )) 
 ))
 */
-ATOM make_alist( ATOM keys,ATOM vals ){  // (a b),(1 2) -> ((a . 1)(b . 2))
-  if ( is_null(keys) )
-    if ( is_null(vals) ) return NIL;
-    else EXIT( "Not enough keys for values",vals );
+ATOM make_alist( ATOM k,ATOM v ){  // (a b),(1 2) -> ((a . 1)(b . 2))
+  if ( is_null(k) )
+    if ( is_null(v) ) return NIL;
+    else EXIT( "Not enough keys for values",v );
 
-  if ( is_atom(keys) )   // handle list-arg and dot pair case
-    return cons( make_kvp( keys,vals ),NIL );
+  if ( is_atom(k) )   // handle list-arg and dot pair case
+    return cons( make_kvp( k,v ),NIL );
     
-  if ( is_null(vals) ){
-    ATOM kvp = make_kvp( car(keys),NIL );
-    ATOM alst = cons( kvp,make_alist( cdr(keys),NIL ) );
-    return alst;
+  if ( is_null(v) ){
+    ATOM p = make_kvp( car(k),NIL );
+    ATOM a = cons( p,make_alist( cdr(k),NIL ) );
+    return a;
   }
     
-  ATOM kvp = make_kvp( car(keys),car(vals) );
-  ATOM alst = cons( kvp,make_alist( cdr(keys),cdr(vals) ) );
-  //ALIST_PEEK( "",alst );
-  EXITIF( ! is_alist( alst ),"alst is not an associative list",alst );  
-  return alst;
+  ATOM p = make_kvp( car(k),car(v) );
+  ATOM a = cons( p,make_alist( cdr(k),cdr(v) ) );
+      //ALIST_PEEK( "",a );
+      EXITIF( ! is_alist( a ),"not an associative list",a );  
+  return a;
 }
 
-ATOM extend_alist( ATOM kvp,ATOM alst ){
-  //PEEK( "",kvp );
-  EXITIF( ! is_kvp( kvp ),"kvp is not a key-value pair",kvp );
+ATOM extend_alist( ATOM p,ATOM a ){
+      //PEEK( "",p );
+      EXITIF( ! is_kvp( p ),"not a key-value pair",p );
 /*
   FILE *old = in;
   FILE *f = fopen( "/dev/tty" ,"r" );
-  EXITIF( f==NULL,"Could not open /dev/tty",cons( kvp,alst ) );
+      EXITIF( f==NULL,"Could not open /dev/tty",cons( p,a ) );
   in = f;
-  //peek( "eval.load: exp",exp );
+      //peek( "eval.load: exp",exp );
   GLOBAL_KEEP3( NIL );   // get rid of all debugging
-  ATOM ret = repl();
-  PEEK( "",ret );
+  ATOM r = repl();
+  PEEK( "",r );
   fclose(f);
   in = old;
 /**/
-  //PEEK( "",alst );
-  EXITIF( ! is_alist( alst ),"alst is not an associative list",alst );
-  ATOM res = cons( kvp,alst );
-  EXITIF( ! is_alist( res ),"alst is not an associative list",res );
-  //PEEK( "",res );
-  return res;  
+      //PEEK( "",a );
+      EXITIF( ! is_alist( a ),"not an associative list",a );
+  ATOM r = cons( p,a );
+      EXITIF( ! is_alist( r ),"not an associative list",r );
+      //PEEK( "",r );
+  return r;  
 }
 
-int is_alist( ATOM alst ){
-  //PEEK( "",alst );
-  if ( is_null(alst) ) return TRUE;  // FIXME: is NIL and alist?
-  if ( is_atom(alst) ) return FALSE;
-  if ( ! is_kvp( car(alst) ) ) return FALSE;
-  // turned on
-  //PEEK( "",alst );
-  //if ( ! is_alist( cdr(alst) ) ) return FALSE;  // test whole alist
+int is_alist( ATOM a ){
+      //PEEK( "",a );
+  if ( is_null(a) ) return TRUE;  // FIXME: is NIL an alist?
+  if ( is_atom(a) ) return FALSE;
+  if ( ! is_kvp( car(a) ) ) return FALSE;
+  // FIXME: turned on
+      //PEEK( "",a );
+  //if ( ! is_alist( cdr(a) ) ) return FALSE;  // test whole alist
   return TRUE;
 }
 
-ATOM alist_keys( ATOM alst ){
-  //ALIST_PEEK( "",alst );
-  if ( is_null(alst) ) return NIL;
-  EXITIF( ! is_alist(alst),"alst is not an associative list",alst );
-  return cons( kvp_key( car(alst) ),alist_keys( cdr(alst) ) );
+ATOM alist_keys( ATOM a ){
+      //ALIST_PEEK( "",a );
+  if ( is_null(a) ) return NIL;
+      EXITIF( ! is_alist(a),"not an associative list",a );
+  return cons( kvp_key( car(a) ),alist_keys( cdr(a) ) );
 }
 
-ATOM alist_vals( ATOM alst ){
-  //ALIST_PEEK( "",alst );
-  if ( is_null(alst) ) return NIL;
-  EXITIF( ! is_alist(alst),"alst is not an associative list",alst );
-  return cons( kvp_val( car(alst) ),alist_vals( cdr(alst) ) );
+ATOM alist_vals( ATOM a ){
+      //ALIST_PEEK( "",a );
+  if ( is_null(a) ) return NIL;
+      EXITIF( ! is_alist(a),"not an associative list",a );
+  return cons( kvp_val( car(a) ),alist_vals( cdr(a) ) );
 }
 
-ATOM alist_car_vals( ATOM alst ){
-  //ALIST_PEEK( "",alst );
-  if ( is_null(alst) ) return NIL;
-  EXITIF( ! is_alist(alst),"alst is not an associative list",alst );
-  return cons( car( kvp_val( car(alst) ) ),alist_car_vals( cdr(alst) ) );
+ATOM alist_car_vals( ATOM a ){
+      //ALIST_PEEK( "",a );
+  if ( is_null(a) ) return NIL;
+      EXITIF( ! is_alist(a),"not an associative list",a );
+  return cons( car( kvp_val( car(a) ) ),alist_car_vals( cdr(a) ) );
 }
 
 /*
@@ -200,20 +201,19 @@ ATOM alist_car_vals( ATOM alst ){
     (else (assoc x (cdr a)))))
 */
 // return kvp
-ATOM alist_assoc( ATOM key,ATOM alst ){
-  //ALIST_PEEK( "",key );
-  //ALIST_PEEK( "",alst );
-  EXITIF( ! is_atom(key),"key is not an atom",key );
-  EXITIF( ! is_alist(alst),"alst is not an alist",alst );
-  if ( is_null(alst) ) return FAL;
-  if ( equal( key,kvp_key( car(alst) ) ) ) return car( alst );
-  return alist_assoc( key,cdr(alst) );  
+//
+ATOM alist_assoc( ATOM k,ATOM a ){
+      //ALIST_PEEK( "",k );
+      //ALIST_PEEK( "",a );
+      EXITIF( ! is_atom(k),"not an atom",k );
+      EXITIF( ! is_alist(a),"not an alist",a );
+  if ( is_null(a) ) return FAL;
+  if ( equal( k,kvp_key( car(a) ) ) ) return car( a );
+  return alist_assoc( k,cdr(a) );  
 }
 
-ATOM alist_find( ATOM key,ATOM alst ){ 
-  //ALIST_PEEK( "",key );
-  //ALIST_PEEK( "",alst );
-  return alist_assoc( key,alst ); 
+ATOM alist_find( ATOM k,ATOM a ){ 
+  return alist_assoc( k,a ); 
 }
 
 /*
@@ -328,10 +328,11 @@ ATOM tenv_env( ATOM tenv ){
 
 // primitive ADT
 
-// (x),car -> (primitive (x) car)  
-ATOM make_primitive( ATOM form,ATOM cfun ){
+// (x),car,3 -> (primitive car (x) 3)  
+ATOM make_primitive( ATOM form,ATOM name,ATOM cfun ){
   ATOM left = cons( form,cfun );
-  ATOM prim = cons( kw_primitive,left );
+  ATOM temp = cons( name,left );
+  ATOM prim = cons( kw_primitive,temp );
   return prim;
 }
 
@@ -339,17 +340,21 @@ int is_primitive( ATOM prim ){
   return match_taglist( prim,kw_primitive ); 
 }
 
+ATOM primitive_name( ATOM prim ){
+  EXITIF( ! is_primitive( prim ),"prim not a primitive procedure",prim ); 
+  ATOM form = _2ND( prim );
+  return form;
+}
+
 ATOM primitive_form( ATOM prim ){
   EXITIF( ! is_primitive( prim ),"prim not a primitive procedure",prim ); 
-  //PEEK( "",prim );
-  ATOM form = _2ND( prim );
-  //PEEK( "",form );
+  ATOM form = _3RD( prim );
   return form;
 }
 
 ATOM primitive_cfun( ATOM prim ){
   EXITIF( ! is_primitive( prim ),"prim not a primitive procedure",prim ); 
-  ATOM cfun = _3RD( prim );
+  ATOM cfun = _4TH( prim );
   return cfun;
 }
 

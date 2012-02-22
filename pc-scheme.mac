@@ -12,12 +12,6 @@
 
 ;(requires "pc-adt-kv.sim")
 
-(define indent (lambda (n)
-  (if (= n 0) '() (progn (print "  ") (indent (- n 1))))  ))
-
-(define indent-level 0)
-
-
 ; define or match a symbol
 
 (define match-or-define-variable (lambda (kvp var exp env)
@@ -32,7 +26,7 @@
 (define var? (lambda (tem)
   (if (symbol? tem)
       (if (eq? (symbol-ref tem 0) #\?) 
-          (if (> (symbol-length tem) 1) #t #f) 
+          (if (int> (symbol-length tem) 1) #t #f) 
           #f  )
       #f  )  ))
 
@@ -57,11 +51,6 @@
           (alist-lookup (symbol-ref var 1) char->num)
           #f  )
       #f  )  ))
-      
-;(symbol-ref '?5 1)      
-;(alist-lookup #\3 char->num)
-;(var->ref '?0)
-;(exit 1)
 
 ; does template match expression given environment
 
@@ -73,7 +62,10 @@
         ;((eq? pat exp) env)
         ((equal? pat exp) env)
         ((var? pat)   ;(displayn "var=" pat)
-                      (match-or-define-variable (alist-assoc pat env) pat exp env)  )
+                      (match-or-define-variable (alist-assoc pat env) 
+                                                pat 
+                                                exp 
+                                                env)  )
         ((pair? pat)  ;(displayn "pair=" pat)
                       (if (pair? exp) 
                           (match (cdr pat) 
@@ -93,40 +85,57 @@
 
 (load "pc-macro-transformers.sim")
 
+(define make-exp-old (lambda (tem env)
+  ;(displayn "make-exp  tem=[" tem "]  env=[" env "]")
+  ;(define pn I)
+  (define make (lambda (tem)
+    (cond 
+        ( (null? tem)  '() )
+        ( (var? tem)   (alist-lookup tem env) )
+        ( (atom? tem)  tem  )
+        ( (pair? tem)  (eval-macro (pn (cons (make (car tem)) 
+                                             (make (cdr tem))  ))))
+        (else          (displayn "make-exp: unknown template element" tem) #f )  )  ))
+  (make tem)  ))
+
 (define make-exp (lambda (tem env)
-  (displayn "make-exp  tem=[" tem "]  env=[" env "]")
-  (define pn I)
+  ;(displayn "make-exp  tem=[" tem "]  env=[" env "]")
   (cond 
         ( (null? tem)  '() )
         ( (var? tem)   (alist-lookup tem env) )
         ( (atom? tem)  tem  )
-        ( (pair? tem)  (eval-macro (pn (cons (make-exp (car tem) env) 
-                                         (make-exp (cdr tem) env)  )  )
-                       ) )
-        (else          (displayn "make-exp: unknown template element" tem) #f )  )
-))
+        ( (pair? tem)  (eval-macro (cons (make-exp (car tem) env) 
+                                         (make-exp (cdr tem) env)  )))
+        (else          (displayn "make-exp: unknown template element" tem) #f )  )  ))
 
+  
 ; make expression using positional values
 ; (add ?1 ?2) (3 4) -> (add 3 4)
 ;
+; Use to trigger memory leak by internal define
+;
 (define make-expn (lambda (tem . ags)
-  (displayn "make-expn  tem=[" tem "]  ags=[" ags "]")
-  (define make-expn-h (lambda (tem)
-    ;(displayn "make-expn-h  tem=[" tem "]")
+  ;(displayn "make-expn  tem=[" tem "]  ags=[" ags "]")
+  (define make (lambda (tem)
     (cond 
         ( (null? tem)  '() )
         ( (var? tem)   (list-ref ags (var->ref tem)) )
         ( (atom? tem)  tem  )
-        ( (pair? tem)  (cons (make-expn-h (car tem)) 
-                             (make-expn-h (cdr tem))
-                       ) )
-        (else          (displayn "make-expn: unknown template element" tem) #f )  )
-  ))
-  (make-expn-h tem)
-))
+        ( (pair? tem)  (cons (make (car tem)) 
+                             (make (cdr tem))  ))
+        (else          (displayn "make-expn: unknown template element" tem) #f)  )  ))
+  (make tem)  ))
 
-(make-expn '(add ?0 ?1 ?2) 11 22 33)
-;(exit 1)
+(define make-expna (lambda (tem ags)
+  (cond 
+        ( (null? tem)  '() )
+        ( (var? tem)   (list-ref ags (var->ref tem)) )
+        ( (atom? tem)  tem  )
+        ( (pair? tem)  (cons (make-expna (car tem) args) 
+                             (make-expna (cdr tem) args)  ))
+        (else          (displayn "make-expna: unknown template element" tem) #f)  )  ))
+
+(define make-expn-keep (lambda (tem . args) (make-expna tem args)))
 
 ; macro is (pattern template)
 ;
@@ -140,134 +149,63 @@
 
 (define exp-tag (lambda (exp) (car exp)))
 
-;(define eval-macro-worker-org (lambda (exp trans)
-;  (cond ((null? trans) exp)      ; no more translations
-;        ((atom? exp) exp)        ; we don't translate atoms
-;        ((not (eq? (pat-key (macro-pat (car trans))) (exp-tag exp)))
-;         (eval-macro-worker exp (cdr trans))  )
-;        (else
-;         ((lambda (env)
-;                  (cond (env (make-exp (macro-tem (car trans)) env) ) 
-;                        (else (eval-macro-worker exp (cdr trans)))  )) 
-;          (match (macro-pat (car trans)) exp '())  )))))
-
 ; an environment means we may be able to apply this macro
 ;
 (define eval-macro-apply (lambda (exp trans env)
   (if env
       (make-exp (macro-tem (car trans)) env)
-      (eval-macro-worker exp (cdr trans))  )))
+      (eval-macro-worker exp (cdr trans))  )  ))
 
 ; see if there are any macros that can be applied
 ;
 (define eval-macro-worker (lambda (exp trans)
-  (cond ((null? trans) exp)      ; no more translations
-        ((atom? exp)   exp)      ; we don't translate atoms
+  (cond ((null? trans) exp)                      ; no more translations
+        ((atom? exp)   exp)                      ; we don't translate atoms
         ((eq? (pat-key (macro-pat (car trans))) 
-              (exp-tag exp)  )   ; tag matches
+              (exp-tag exp)  )                   ; tag matches
          (eval-macro-apply exp 
-                         trans 
-                         (match (macro-pat (car trans)) exp '())  ))
-        (else (eval-macro-worker exp (cdr trans))  )  )))
+                           trans 
+                           (match (macro-pat (car trans)) 
+                                  exp 
+                                  '()  )))
+        (else (eval-macro-worker exp (cdr trans)))  )  ))
 
 ; expand macros using transformers
 ;         
 (define eval-macro (lambda (exp) (eval-macro-worker exp transformers) ))
 
-;;;;;;;;;; test harness
-
-; (? expect expression)
-; eg (? 3 '(+ 1 2))
-
-(define ?count 0)  ;; count errors
-(define ?stop 1)  ; stop after this many errors
-
-(define ? (lambda (expect exp)
-  (displayn "test exp=" exp "->" expect)
-  ;(define result (eval1 exp))  ;; FIXME: this is bad
-  (let ((result (eval1 (eval-macro exp))))
-    (cond ((equal? result expect) (display "  pass\n") #t )
-          (else (set! ?count (+ ?count 1))
-                (displayn "FAIL! Got" result)
-                (if (= ?count ?stop) (exit) #f )  )  )
-  )   
-))
 
 ;;;;;;;;;; macro test area
-
-;(define (f1) (+ 1 2))
-;f1
-;(define (f2) (+ 1 2) (+ 3 4))
-;f2
-;(define (f3 a) (+ a 2))
-;f3
-;(define (f4 a) (+ 1 1) (+ a 2))
-;f4
-
-;(exit 1)
-(and)
-(and 1)
-(exit 1)
-(? 6 '(let ((x 2) (y 3)) (* x y)))
-(? 35 '(let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (* z x))))
-(? 70 '(let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x))))
-;(? 9 '(letrec () (define x 9) x))
-
-;(exit 1)
-
-(? 3 '(let () (+ 1 2)) )
-(? 2 '(let ((a 1)) (+ a 1)) )
-(? 3 '(let ((a 1) (b 2)) (+ a b)) )
-(? 6 '(let ((a 1) (b 2) (c 3)) (+ a b c)) )
-(let ((a 1) (b 2) (c 3)) (+ a b c))
-
-(? 3 '(let* () (+ 1 2)) )
-(? 2 '(let* ((a 1)) (+ a 1)) )
-(? 2 '(let* ((a 1) (b a)) (+ a b)) )
-(? 5 '(let* ((a 1) (b a) (c (+ b 2))) (+ a b c)) )
-(let* ((a 1) (b a) (c (+ b 2))) (+ a b c))
-
-;(letrec->define ((x 1)(y 2)(z 3)) ((+ 2 3)))
-;(letrec->define ((x 1)) (+ 1 1) (+ 2 3) )
-(? 3 '(letrec () (+ 1 2)) )
-(? 3 '(letrec () (+ 3 4) (+ 1 2)) )
-(? 2 '(letrec ((x 1)) (+ x 1)) )
-(? 2 '(letrec ((x 1)) (+ x x) (+ x 1)) )
-(? 6 '(letrec ((x 1) (y 2) (z 3)) (+ x y z)) )
-(? 6 '(letrec ((x 1) (y 2) (z 3)) (+ x y) (+ x y z)) )
-
-(? 6 '(- 10 3 1))
-(? #t '(= 10 10))
-
-;(exit 1)
 
 ;;;;;;;;;; benchmarking
 ; see old file circa 6/2/2012 for some pairs benchmarking data
 ;;;;;;;;;;
 
-(? 1 1)
-(? + '+)
-(? 0 '(+) )
-(? 1 '(+ 1) )
-(? 3 '(+ 1 2) )
-(? 6 '(+ 1 2 3) )
-(? 10 '(+ 1 2 3 4) )
-(? 4 '(inc 3) )
-(? 5 '(begin 1 (inc 2) (+ 2 3)) )
-(? #t '(and) )
-(? 2 '(and 2) )
-(? #f '(and (= 1 2) (= 3 4) (= 5 6)) )
-(? #f '(or) )
-(? 2 '(or 2) )
-(? #f '(or (= 1 2) (= 3 4) (= 5 6)) )
-(? 6 '(let ((x 3)) (+ x 3)) )
-(? 6 '(let* ((x 3)) (+ x 3)) )
-(? 7 '(let* ((x 3) (y 4)) (+ x y)) )
+;(? 1 1)
+;(? + '+)
+;(? 0 '(+) )
+;(? 1 '(+ 1) )
+;(? 3 '(+ 1 2) )
+;(? 6 '(+ 1 2 3) )
+;(? 10 '(+ 1 2 3 4) )
+;(? 4 '(inc 3) )
+;(? 5 '(begin 1 (inc 2) (+ 2 3)) )
+;(? #t '(and) )
+;(? 2 '(and 2) )
+;(? #f '(and (= 1 2) (= 3 4) (= 5 6)) )
+;(? #f '(or) )
+;(? 2 '(or 2) )
+;(? #f '(or (= 1 2) (= 3 4) (= 5 6)) )
+;(? 6 '(let ((x 3)) (+ x 3)) )
+;(? 6 '(let* ((x 3)) (+ x 3)) )
+;(? 7 '(let* ((x 3) (y 4)) (+ x y)) )
 
 ;;;;;;;;;; keep last
 
 (display "Macros loaded.") (newline)
+(display "Macros loaded.") (newline)
 
-(cond ((= ?count ?stop) (displayn "Macro failed " ?count "tests.") (exit 1) )
-      (else '()))
+(cond ((eq? pc-test-count pc-test-stop) (displayn "Macro failed " pc-test-count "tests.") 
+                                        (exit 1)  )
+      (else '())  )
 

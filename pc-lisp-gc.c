@@ -26,8 +26,8 @@ Memory - Pairs
 
 #define GC_ON                // GC ON
 #define GC_CHECK             // check all pairs are not marked after GC
-#define MTY          MAKE_CON( -9 )     // eMpTY cell in memory
 #define REC          MAKE_CON( -10)     // recycled pair
+#define FOR          MAKE_CON( -11)     // Forced recycled pair
 
 typedef union{
   struct{
@@ -41,23 +41,53 @@ extern FLAGS  sar[SIZE];
 
 #include "pc-lisp-misc.c"
 
-extern int  _sweepPairCount;
-extern int  _recycleStrCount;
+extern int   _sweepPairCount;
+extern int   _recycleStrCount;
+
+//extern int   _indent;
+extern int   _trace_enter;
+extern ATOM _keep;
+
 
 // ADTs
 
-ATOM set_car( ATOM par,ATOM car );
-ATOM set_cdr( ATOM par,ATOM cdr );
-ATOM car( ATOM par );
-ATOM cdr( ATOM par );
+       ATOM   set_car( ATOM p,ATOM a );
+       ATOM   set_cdr( ATOM p,ATOM a );
+       ATOM   car( ATOM p );
+       ATOM   cdr( ATOM p );
 
-void _inc_ref( ATOM p );
+       void  _inc_ref( ATOM p );
 
-extern int  _recyclePairCount;
-void _recycle( ATOM p );
+extern int   _recyclePairCount;
+       void  _recycle( ATOM p );
 
-extern int _decRecyclePairCount;
-void _dec_ref( ATOM p );
+extern int   _decRecyclePairCount;
+       void  _dec_ref( ATOM p );
+#define TVAL 3009 // 4022 //3992
+
+#define TRACE_PEEK( m,a ){  \
+  PEEK( m,a );                \
+  EXITIF( ! _is_used( a ),#a " is not used",a );                   \
+  if ( ! _is_used( a ) ) PEEK( #a " is not used",a );                   \
+  if ( _is_free( a ) ) PEEK( #a " is free",a );                   \
+}  
+
+#define TRACE( a,t ){                                               \
+  if ( _trace_enter==0 ){  \
+    _trace_enter = 1;\
+    if ( a.atm==t ) PEEK( #a ".atm=" #t,a );                        \
+         if ( is_eq( a,make_par(t) ) ) TRACE_PEEK( "par(" #a ")=" #t,a )   \
+    else if ( is_eq( a,make_num(t) ) ) PEEK( "num(" #a ")=" #t,a   )   \
+    else if ( is_eq( a,make_sym(t) ) ) PEEK( "sym(" #a ")=" #t,a   )   \
+    else if ( is_eq( a,make_str(t) ) ) PEEK( "str(" #a ")=" #t,a   )   \
+    else if ( is_eq( a,make_con(t) ) ) PEEK( "con(" #a ")=" #t,a   )   \
+    else if ( is_eq( a,make_chr(t) ) ) PEEK( "chr(" #a ")=" #t,a   );  \
+                                                                    \
+         if ( is_eq( a,EFL ) ) TRACE_PEEK( #a " is EFL!",a )            \
+    else if ( is_eq( a,EUL ) ) TRACE_PEEK( #a " is EUL!",a );            \
+    _trace_enter = 0;\
+  }                                                                 \
+}
 
 //#define MEM_DEBUG
 
@@ -71,44 +101,57 @@ void _dec_ref( ATOM p );
 #endif
 
 #define MARK3                                                          \
-  MEM_DEBUG_LINE( "MARK3.1" );                                         \
-  /*FILE_LINE;/**/                                                     \
-  /*ATOM _save = _mem( usedPairs );/**/                                \
-  //MEM_PEEK( "",_save );                                              \
-  MEM_DEBUG_LINE( "MARK3.2" );                                         
+      MEM_DEBUG_LINE( "MARK3.1" );                                     \
+      /*FILE_LINE;/**/                                                 \
+  ATOM _save = _mem( usedPairs );                                      \
+      /*MEM_PEEK( "",_save );/**/                                      \
+      MEM_DEBUG_LINE( "MARK3.2" );                                       
   
-#define GLOBAL_MARK3 _global_save = _mem( usedPairs )
+#define REMARK3                                                        \
+      MEM_DEBUG_LINE( "REMARK3.1" );                                   \
+  _save = _mem( usedPairs );                                           \
+      MEM_DEBUG_LINE( "REMARK3.2" );                                       
+
+/*
+#define GLOBAL_MARK3                                                   \
+      MEM_DEBUG_LINE( "GLOBAL_MARK3.1" );                              \
+  _global_save = _mem( usedPairs );                                    \
+      MEM_DEBUG_LINE( "GLOBAL_MARK3.2" );
+
+#define GLOBAL_KEEP3(a) {                                              \
+      MEM_DEBUG_LINE( "GLOBAL_KEEP3.1" );                              \
+  EXITIF( is_eq( car(_global_save),REC ),"GLOBAL SAVE POINT RECYCLED!",_global_save );      \
+  _ms_sweep_new_pairs( _global_save,(a),13 );                          \
+      MEM_DEBUG_LINE( "GLOBAL_KEEP3.2" );                              \
+  _global_save = _mem( usedPairs );                                    \
+      MEM_DEBUG_LINE( "GLOBAL_KEEP3.3" );                              \
+}
+*/
 
 #define RETURN3(a) {                                                   \
-  /*ATOM _ret = (a);/**/                                               \
-  MEM_DEBUG_LINE( "RETURN3.1" );                                       \
-  /*_gc( _save,_ret );/**/                                             \
+  ATOM _ret = (a);                                                     \
+      MEM_DEBUG_LINE( "RETURN3.1" );                                   \
+  EXITIF( is_eq( car(_save),REC ),"SAVE POINT RECYCLED!",_save );      \
+  _gc( _mem(usedPairs),_save,_ret );                                 \
   /*_mem_print_used_pairs( "RETURN3",usedPairs,_save );/**/            \
-  MEM_DEBUG_LINE( "RETURN3.2" );                                       \
-  return a;/*_ret;/**/                                                 \
+      MEM_DEBUG_LINE( "RETURN3.2" );                                   \
+  return _ret;                                                         \
 }
 
 #define KEEP3(a) {                                                     \
-  MEM_DEBUG_LINE( "KEEP3.1" );                                         \
-  /*_gc( _save,(a) );/**/                                              \
+      MEM_DEBUG_LINE( "KEEP3.1" );                                     \
+  EXITIF( is_eq( car(_save),REC ),"SAVE POINT RECYCLED!",_save );      \
+  _gc( _mem(usedPairs),_save,NIL );                                  \
   /*_mem_print_used_pairs( "KEEP3",usedPairs,_save );/**/              \
-  MEM_DEBUG_LINE( "KEEP3.2" );                                         \
+      MEM_DEBUG_LINE( "KEEP3.2" );                                     \
 }
 
-#define GLOBAL_KEEP3(a) {                                              \
-  MEM_DEBUG_LINE( "GLOBAL_KEEP3.1" );                                  \
-  /*_gc( _global_save,(a) );/**/                                       \
-  MEM_DEBUG_LINE( "GLOBAL_KEEP3.2" );                                  \
-  /*_global_save = _mem( usedPairs );/**/                              \
-  MEM_DEBUG_LINE( "GLOBAL_KEEP3.3" );                                  \
-}
-
-#define VOID3() {                                                      \
-  MEM_DEBUG_LINE( "VOID3.1" );                                         \
-  /*_gc( _save,NIL );/**/                                              \
-  MEM_DEBUG_LINE( "VOID3.2" );                                         \
-  return;                                                              \
-}
+//#define VOID3() {                                                      \
+//      MEM_DEBUG_LINE( "VOID3.1" );                                     \
+//  _ms_sweep_new_pairs( _save,NIL,15 );                                 \
+//      MEM_DEBUG_LINE( "VOID3.2" );                                     \
+//  return;                                                              \
+//}
 
 #define _1ST(a)      car(a)     // [1,1]
 #define _2ND(a)      cadr(a)    // [2,1]
@@ -146,13 +189,13 @@ void _dec_ref( ATOM p );
 #define cddar(a)     cdr( cdar( a ) )
 #define cdddr(a)     cdr( cddr( a ) )  // rest after _3RD
 
-#define caaaar(a)    car( caaar( a ) )  // _4TH down
-#define caaadr(a)    car( caadr( a ) )
-#define caadar(a)    car( cadar( a ) )
-#define caaddr(a)    car( caddr( a ) )  // _1of3 _1ST of _3RD 
-#define cadaar(a)    car( cdaar( a ) )
-#define cadadr(a)    car( cdadr( a ) )
-#define caddar(a)    car( cddar( a ) )
+//#define caaaar(a)    car( caaar( a ) )  // _4TH down
+//#define caaadr(a)    car( caadr( a ) )
+//#define caadar(a)    car( cadar( a ) )
+//#define caaddr(a)    car( caddr( a ) )  // _1of3 _1ST of _3RD 
+//#define cadaar(a)    car( cdaar( a ) )
+//#define cadadr(a)    car( cdadr( a ) )
+//#define caddar(a)    car( cddar( a ) )
 #define cadddr(a)    car( cdddr( a ) )  // _4TH
 
 //#define cdaaar(a)    cdr( caaar( a ) )
@@ -174,17 +217,19 @@ void _dec_ref( ATOM p );
 //ATOM _used_append( ATOM p );
 
 extern ATOM (*cons)( ATOM a,ATOM b );
-extern int  _reusedPairCount;
-ATOM consNormal( ATOM a,ATOM b );
-
+extern int   _reusedPairCount;
+       ATOM   consNormal( ATOM a,ATOM b );
 
 //static ATOM _gc_recycle_next( ATOM this,int force );
 //static void _gc_mark( ATOM stop );
 //static void _gc_recycle_pairs( ATOM stop,int force );
 //static ATOM _ms_sweep_next( ATOM this,int m );
-static void _ms_sweep_all_pairs( int m );
+       void  _gc( ATOM f,ATOM t,ATOM k );
+//static void  _ms_sweep_all_pairs( ATOM f,int m );
+//       void  _ms_sweep_new_pairs( ATOM f,ATOM r,int m );
+
 //static void _ms_mark_all_used_pairs( int m );
-void _ms( ATOM env );
+//       void  _ms( ATOM env );
 //static void _gc_ensure_all_used_pairs_not_marked();
 //void _gc( ATOM stop,ATOM keep );
 //static void _gc_clear( ATOM pair );
@@ -198,63 +243,113 @@ void _ms( ATOM env );
 
 // CODE
 
-ATOM set_car( ATOM par,ATOM car ){
-  ASSERT_PAIR( par );
-  EXITIF( is_null( par ),"par is NIL",par );
-  ATOM old = _car(par);
-  if ( is_eq( car,old ) ) return car;  // nothing to do
-  _set_car( par,car );
-  if ( is_pair(car) )  _inc_ref( car );  // avoid race, inc b4 dec
-  if ( is_pair(old) )  _dec_ref( old );
-  return car;
+int _trace_enter = 0;
+
+// Initialize car of pair - only used legally by cons
+//
+ATOM init_car( ATOM p,ATOM a ){
+      //EXITIF( is_eq( p,EUL ),"p is EUL",p );
+  _set_car( p,a );
+  if ( is_pair(a) ) _inc_ref( a );  // no need to mark this
+  return a;
 }
 
-ATOM car( ATOM par ){
-  EXITIF( is_null( par ),"par is NIL",par );
-  return _car( par );
+ATOM init_cdr( ATOM p,ATOM a ){
+  _set_cdr( p,a );
+  if ( is_pair(a) ) _inc_ref( a );
+  return a;
 }
 
-ATOM set_cdr( ATOM par,ATOM cdr ){
-  ASSERT_PAIR( par );
-  EXITIF( is_null( par ),"par is NIL",par );
-  ATOM old = _cdr(par);
-  if ( is_eq( cdr,old ) ) return cdr;  // nothing to do
-  _set_cdr( par,cdr );
-  if ( is_pair(cdr) )  _inc_ref( cdr );  // avoid race, inc b4 dec
-  if ( is_pair(old) )  _dec_ref( old );
-  return cdr;
+ATOM car( ATOM p ){
+  return _car( p );
 }
 
-ATOM cdr( ATOM par ){
-  EXITIF( is_null( par ),"par is NIL",par );
-  return _cdr( par );
+ATOM cdr( ATOM p ){
+  return _cdr( p );
 }
 
+
+ATOM set_car( ATOM p,ATOM a ){
+      //TRACE( p,TVAL );
+      //TRACE( a,TVAL );
+      //ASSERT_PAIR( p );
+  ATOM o = _car(p);
+  if ( is_eq( a,o ) ) return a;  // nothing to do
+  if ( is_pair(a) ) {  // indicate possible loop
+    _set_car( p,a );  // make_par( -get_par(a))
+    _inc_ref( a );  // avoid race, inc b4 dec
+  }
+  else{
+    _set_car( p,a );
+  }
+      //EXITIF( _is_end_free_list( a ),"end free list",p );
+      //EXITIF( _is_end_used_list( a ),"end used list",p );
+      //EXITIF( is_eq( a,NMT ),"car NOT PAIR is NMT",p )
+  if ( is_pair(o) ) _dec_ref( o );
+  return a;
+}
+
+ATOM set_cdr( ATOM p,ATOM a ){
+  ATOM o = _cdr(p);
+  if ( is_eq( a,o ) ) return a;  // nothing to do
+  if ( is_pair(a) ) {  // indicate possible loop
+    _set_cdr( p,a );  // make_par( -get_par(a))
+    _inc_ref( a );  // avoid race, inc b4 dec
+  }
+  else{
+    _set_cdr( p,a );
+  }
+  if ( is_pair(o) ) _dec_ref( o );
+  return a;
+}
+// increase ref count on p
+// ignore if global environment (except first time)
+//
 void _inc_ref( ATOM p ){
+      //TRACE( p,TVAL );
+      EXITIF( _ref(p)<0,"Reference count sub zero - should never happen!",p );
+      //EXITIF( ! _is_used(p),"Pair not on used list!",p );
+      //_mem_print_used_pairs( "rec",p,NIL );
+  //if ( ! is_pair(p) ) return;
+  if ( is_eq( p,gEnv ) ){
+         //PEEK( "hit gEnv",make_num(_ref(p)) );
+    if ( _ref(p)>0 ) return;  // only do once for gEnv
+  }
   _set_ref( p,_ref(p)+1 );
 }
 
 // all unreferenced pairs MUST be recycled this way
 int _recyclePairCount = 0;
 
+// Recycle a pair
+// This should only be called when a pair's reference
+// count reduces to zero.
+//
 void _recycle( ATOM p ){
-    //WARN( "Reference count is 0 - GC'd",p );
-    _used_unlink( p );
-    _free_append( p );
+        //TRACE( p,TVAL );
+        EXITIF( _ref(p)!=0,"Reference count not zero - should never happen!",p );
+    // swapped order to gc car and cdr before moving to free list
     set_car( p,REC );  // these force recursive recycling
     set_cdr( p,REC );
+    _used_unlink( p );
+    _free_append( p );
     _recyclePairCount++;
 }
+
 int _decRecyclePairCount = 0;
 
+// decrease ref count on p
+// gEnv is ignored as well
+//
 void _dec_ref( ATOM p ){
-  int c = _ref( p );
-  EXITIF( c==0,"Reference count already 0",p );
-  _set_ref( p,c-1 );
-  if ( c==1 ){
+  //if ( ! is_pair(p) ) return;
+  if ( is_eq( p,gEnv ) ) return;
+      EXITIF( _ref(p)==0,"Reference count already 0 - something badly wrong!",p );
+  _set_ref( p,_ref(p)-1 );
+  if ( _ref(p)==0 ){
     _decRecyclePairCount++;
-    //WARN( "Reference count is 0 - GC'd",p );
-    _recycle( p );
+        //WARN( "Reference count is 0 - GC'd",p );
+    //  _recycle( p );  // don't do this anymore
   }
 }
 
@@ -265,126 +360,49 @@ ATOM (*cons)( ATOM a,ATOM b ) = consNormal;
 int _reusedPairCount  = 0;
 
 ATOM consNormal( ATOM a,ATOM b ){
-  //_cm_check_mem();
   ATOM c = _remove_next_free();   // remove from free list
-  EXITIF( is_null(c),"Cons FATAL: All cells used",NIL );
-  if ( is_eq( car(c),REC ) ){
-    _reusedPairCount++;
-    //WARN( "Using recycled pair",c );
+
+      EXITIF( _is_end_free_list( freePairs ),"Cons FATAL: All cells used",NIL );
+  if ( is_eq( car(c),MTY ) ){
+        EXITIF( _ref(c)!=0,"GC reference count not zero on fresh pair"
+                           " - should be impossible.",make_num(_ref(c)) );
   }
-  set_car( c,a );
-  set_cdr( c,b );
-  EXITIF( _gcm(c)!=0,"GC mark not zero",c );
-  
-  //PEEK( "done",c );
-  //_cm_check_mem();  // may not be able to do this here since
-  // nothing refs this new pair yet.
+  if ( is_eq( car(c),REC ) ){
+        EXITIF( _ref(c)!=0,"GC reference count not zero on recycled pair"
+                           " - should be impossible.",c );  // printing this cell could be bad
+    _reusedPairCount++;
+        //WARN( "Using recycled pair",c );
+  }
+      EXITIF( _ref(c)!=0,"GC reference count not zero"
+                         " - this should never happen.",make_num(_ref(c)) );  // printing this cell could be bad
+
+  init_car( c,a );
+  init_cdr( c,b );
   return c;
 }
+
 int _sweepPairCount   = 0;
 
-void _ms_sweep_all_pairs( int m ){
-  //PEEK( "start",NIL );
-  ATOM i = _mem( usedPairs );
-  ATOM p = i;
-  //while ( ! is_null( p ) ){
-  while ( ! is_eq( p,MEM0 ) ){
-    i = _mem( p );
-    if ( _ref(p)==0 ){
+// GC from f to t, not processing t or k
+// GC is ref count is zero
+
+void _gc( ATOM f,ATOM t,ATOM k ){
+#ifndef GC_ON
+  return;
+#endif
+LOOP:
+  if ( is_eq( f,t ) ) return;                 // done
+  ATOM n = _mem(f);
+  if ( ! is_eq( f,k ) ){                       // not k 
+    if ( _ref(f)==0 ){                          // recycle this
       _sweepPairCount++;
-      _recycle( p );
-      i = _mem( usedPairs );
+      _recycle(f);                              // only allowed to recycle f
+      //n = _mem(usedPairs );  // only required if recycle is recursive
     }
-    p = i;
   }
+  f = n;
+  goto LOOP;                                      // try next
 }
-
-void _ms( ATOM env ){
-#ifndef GC_ON
-  return;
-#endif
-  //PEEK( "start",NIL );
-  //WARNIF( is_null(freePairs),"freePairs should never be NIL!",freePairs );
-  //_ms_mark_all_used_pairs(24);
-  //_cm_clear_marks_on_atom( env,24 );  // clear marks in environment
-  //_cm_check_mem();
-  _ms_sweep_all_pairs( 24 );
-  //_cm_check_mem();
-  //_cm_check_mem_leak();
-  //PEEK( "done",NIL );
-}
-
-/*
-
-ATOM _gc_recycle_next(ATOM this, int force){
-  exit(1);
-  ATOM next = _mem( this );     // pair to make head of free list
-  if ( _gcm(next)==1 || force ){            // marked so recycle
-    MEM_PEEK( "next",next );
-//    if ( is_pair( car(a) ) _dec_ref( car(a) );
-//    if ( is_pair( cdr(a) ) _dec_ref( cdr(a) );
-    _set_car( next,REC );                    // clear car
-    _set_gcm( next,0 );                      // clear gc marks
-    _recyclePairCount++;
-    return _remove_next_used( this );
-  }
-  return next;
-}
-
-// mark all new used pairs that could be recycled right now
-// stop marking at stop
-void _gc_mark( ATOM stop ){
-  exit(1);
-  ATOM i = _mem(usedPairs);
-  while ( ! is_eq( i,stop )){            // mark all for recycling
-    //if ( _gcm(i)!=2 )  
-    _set_gcm( i,1 );  // mark if not define or set*
-    i = _mem(i);
-  }
-}
-
-// recycles pairs from mem(usedpairs) downto but not including stop
-void _recycle_pairs( ATOM stop,int force ){
-  exit(1);
-  ATOM i = usedPairs;
-  while ( ! is_eq( _mem(i),stop ) ){
-    i = _gc_recycle_next( i,force );
-  }
-}
-
-void _gc( ATOM stop,ATOM keep ){
-#ifndef GC_ON
-  return;
-#endif
-  // keep may not have a refcount so skip it
-  //PEEK( "",NIL );
-  //PEEK( "inc",keep );
-  //if ( is_pair(keep) ) _inc_ref( keep );
-  //PEEK( "ms",keep );
-  //_ms( gEnv );
-  //PEEK( "dec",keep );
-  //if ( is_pair(keep) ) _dec_ref( keep );
-  //PEEK( "done",keep );
-  //_mem_print_used_pairs( "gEnv",gEnv,stop );
-  return;
-}
-*/
-
-// ===================
-
-/*
-ATOM _ms_sweep_next( ATOM this,int m ){
-  ATOM next = _mem( this );
-  if ( _ref(next)==0 ){          // no refs now
-    //PEEK( "Ref == 0",next );
-    //_set_mrk( next,0 );          // clear gc marks
-    _sweepPairCount++;
-    return _remove_next_used( this );
-  }
-  return next;
-}
-*/
-
 
 #endif
 #endif

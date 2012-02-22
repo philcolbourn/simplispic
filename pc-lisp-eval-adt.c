@@ -101,7 +101,7 @@ int is_self_eval  ( ATOM exp ){
 }
 
 ATOM quoted_value( ATOM exp ){
-  //PEEK( "",exp );
+      //PEEK( "",exp );
   return car( taglist_list( exp ) );
 }
 
@@ -110,19 +110,19 @@ if expression ADT
 (if pred con alt)
 */
 ATOM if_pred( ATOM exp ){
-  EXITIF( ! is_if( exp ),"Not an if expression",exp );
-  EXITIF( is_null( _Rfrom2(exp) ),"No predicate and consequent terms",exp );
+      EXITIF( ! is_if( exp ),"Not an if expression",exp );
+      EXITIF( is_null( _Rfrom2(exp) ),"No predicate and consequent terms",exp );
   return _2ND( exp );
 }
 
 ATOM if_con( ATOM exp ){
-  EXITIF( ! is_if( exp ),"Not an if expression",exp );
-  EXITIF( is_null( _Rfrom3(exp) ),"No consequent term",exp );
+      EXITIF( ! is_if( exp ),"Not an if expression",exp );
+      EXITIF( is_null( _Rfrom3(exp) ),"No consequent term",exp );
   return _3RD( exp );
 }
 
 ATOM if_alt( ATOM exp ){
-  EXITIF( ! is_if( exp ),"Not an if expression",exp );
+      EXITIF( ! is_if( exp ),"Not an if expression",exp );
   if ( is_null( _Rfrom4(exp) ) )  return NIL;
   return _4TH( exp );
 }
@@ -130,21 +130,21 @@ ATOM if_alt( ATOM exp ){
 // (if p? con alt) special form since only con or alt is evaluated
 ATOM eval_if( ATOM exp,ATOM env ){
   ATOM pred = if_pred(exp);  // predicate
-  //PEEK( "",pred );
+      //PEEK( "",pred );
   ATOM epred = eval( pred,env );  // eval predicate
-  //PEEK( "",epred );
+      //PEEK( "",epred );
   //if ( ! is_null(epred) ){  // when () was false
   if ( ! is_eq( epred,FAL ) ){
     ATOM con = if_con(exp);
-    //PEEK( "",con );
+        //PEEK( "",con );
     ATOM res = eval( con,env );
-    //PEEK( "",res );
+        //PEEK( "",res );
     return res;
   }
   ATOM alt = if_alt(exp);
-  //PEEK( "",alt );
+      //PEEK( "",alt );
   ATOM res = eval( alt,env );
-  //PEEK( "",res );
+      //PEEK( "",res );
   return res;
 }
 
@@ -162,12 +162,12 @@ int is_cond_clause( ATOM clau ){
 }
 
 ATOM cond_clause_pred( ATOM clau ){
-  EXITIF( ! is_cond_clause( clau ),"Not a cond clause",clau );
+      EXITIF( ! is_cond_clause( clau ),"Not a cond clause",clau );
   return car( clau );
 }
 
 ATOM cond_clause_con( ATOM clau ){
-  EXITIF( ! is_cond_clause( clau ),"Not a cond clause",clau );
+      EXITIF( ! is_cond_clause( clau ),"Not a cond clause",clau );
   return cdr( clau );
 }
 
@@ -187,7 +187,7 @@ ATOM eval_cond_clauses( ATOM lst,ATOM env ){
 // FIXME: what if one exp is a define? - seems to work
 ATOM eval_progn( ATOM seq,ATOM env ){
   MARK3;
-  //PEEK( "",seq );
+      //PEEK( "",seq );
   ATOM res = evalseq( seq,env );
   RETURN3( res );
 }
@@ -201,6 +201,8 @@ ATOM eval_list( ATOM exp,ATOM env ){
 }
 
 ATOM eval_load( ATOM exp,ATOM env ){
+    //GLOBAL_MARK3;
+        //PEEK( "load",exp );
     FILE *f = fopen( strings[ get_str( _2ND(exp) ) ].text,"r" );
     EXITIF( f==NULL,"Could not open file",exp );
     FILE *old = in;
@@ -212,10 +214,11 @@ ATOM eval_load( ATOM exp,ATOM env ){
     // FIXME: may have off effects here
     // assume previous input was 100% ok up to (load )
 
-    GLOBAL_KEEP3( NIL );   // get rid of (load "filename" )
-    //_cm_check_mem();
+    //GLOBAL_KEEP3( NIL );   // get rid of (load "filename" )
+    //_ms(gEnv);
+    _cm_check_mem();
     ATOM ret = repl();
-    //_cm_check_mem();
+    _cm_check_mem();
     fclose(f);
     in = old;
     //setvbuf( in,buf,_IOLBF,BUF_SIZE );
@@ -223,6 +226,7 @@ ATOM eval_load( ATOM exp,ATOM env ){
     line = old_line;
     pos = old_pos;
     //RETURN3( readString("loaded") );  // could do this but repl has done all work
+        //PEEK( "done",ret );
     return readString( "\"File loaded.\"" );
 }
 
@@ -237,13 +241,13 @@ definition ADT
 
 ATOM definition_variable( ATOM exp ){
   if ( is_symbol( _2ND(exp) ) )  return _2ND( exp );
-  EXIT( "Unknown define structure",exp );
+      EXIT( "Unknown define structure",exp );
   return car( _2ND(exp) );  //return caadr( exp );
 }
 
 ATOM definition_value( ATOM exp ){
   if ( is_symbol( _2ND(exp) ) )  return _3RD( exp );
-  EXIT( "Unknown define structure",exp );
+      EXIT( "Unknown define structure",exp );
   ATOM form = _Rof2( exp );  //cdadr( exp );  //_Ro2
   //ATOM body = cddr( exp );  // FIXME: SICP-but this is list of body???
   ATOM body = _3RD( exp );
@@ -253,39 +257,45 @@ ATOM definition_value( ATOM exp ){
 
 // (define sym val) special form since sym is not evaluated
 ATOM eval_definition( ATOM exp,ATOM env ){
-  //PEEK( "start",exp );
+      //PEEK( "start",exp );
   MARK3;
-  //PEEK( "",env );
+      //_mem_print_used_pairs_to_save( "define",NIL,_save );
+      //PEEK( "",env );
   ATOM sym    = _2ND( exp );
   ATOM val    = eval( _3RD(exp),env ); // we must (eval value)
   //ATOM kvp    = assoc( sym,env ); 
   ATOM kvp    = local_assoc( sym,env );  // was assoc - r4rs caught this - local frame only
   if ( ! is_eq( kvp,FAL ) ){  // redefine
-    //PEEK( "REDEFINE",kvp );
-    //PEEK( "REDEFINE",val );
+        //PEEK( "REDEFINE",kvp );
+        //PEEK( "REDEFINE",val );
     ATOM res = set_cdr( kvp,val );
+        //_mem_print_used_pairs_to_save( "redefine",res,_save );
     RETURN3( sym );
   }
-  //PEEK( "",sym );
-  //PEEK( "",val );
+      //PEEK( "NEW",sym );
+      //PEEK( "NEW",val );
+      //PEEK( "",sym );
+      //PEEK( "",val );
   kvp    = make_kvp( sym,val );
-  //PEEK( "",kvp );
+      //PEEK( "",kvp );
   ATOM fra = addKVPair3( kvp,env );
+      //_mem_print_used_pairs_to_save( "define",NIL,_save );
+      //PEEK( "",fra );
   RETURN3( sym );  // works for returning name
 }
 
 // (set! sym val) special form since sym is not evaluated
 ATOM eval_set( ATOM exp,ATOM env ){
   MARK3;
-  //PEEK( "",exp );
-  //PEEK( "",env );
+      //PEEK( "",exp );
+      //PEEK( "",env );
   ATOM sym    = _2ND( exp );
   ATOM val    = eval( _3RD(exp),env ); // we must (eval value)
-  //PEEK( "",sym );
-  //PEEK( "",val );
+      //PEEK( "",sym );
+      //PEEK( "",val );
   ATOM kvp    = assoc( sym,env );
-  //PEEK( "",kvp );
-  EXITIF( is_eq( kvp,FAL ),"sym not found in environment",sym );
+      //PEEK( "",kvp );
+      EXITIF( is_eq( kvp,FAL ),"sym not found in environment",sym );
   ATOM res = set_cdr( kvp,val );
   RETURN3( sym );
 }

@@ -7,7 +7,8 @@
   ( (inc ?a) (+ ?a 1) ) 
   ( (dec ?a) (1 ?a 1) ) 
 
-  ;( (not ?e) (if ?e #f #t) )
+  ; hard: to do (cond ((eq? a b) => (do-something)) ... (else (something-else)))
+  ;( (cond ((?p => ?a) . ?r) (cond ((?p ?a) . )) )
 
   ( (and)           #t )  
   ( (and ?e)        ?e ) 
@@ -61,14 +62,15 @@
   ( (letrec ?v . ?b) (let () . (letrec->define ?v . ?b)) )
   
   ( (cons-stream ?a ?b) (cons ?a (delay ?b)) )
+
   ( (zero? ?e)     (eq? ?e 0) )
   ( (even? ?e)     (and (number? ?e) (eq? (remainder ?e 2) 0)) )
-  ( (odd?  ?e)     (and (number? ?e) (eq? (remainder ?e 2) 1)) )
-  ( (positive? ?e) (and (number? ?e) (>= ?e 0)) )
-  ( (negative? ?e) (and (number? ?e) (<  ?e 0)) )
+  ( (odd?  ?e)     (and (number? ?e) (not (eq? (remainder ?e 2) 1))) )
+  ( (positive? ?e) (and (number? ?e) (> ?e 0)) )
+  ( (negative? ?e) (and (number? ?e) (< ?e 0)) )
   ( (+ve? ?e)      (positive? ?e) )
   ( (-ve? ?e)      (negative? ?e) )
-  ( (abs ?e)       (and (number? ?e) (if (+ve? ?e) ?e (- ?e))) )
+  ( (abs ?e)       (and (number? ?e) (if (>= ?e 0) ?e (- ?e))) )
 ))
 
 

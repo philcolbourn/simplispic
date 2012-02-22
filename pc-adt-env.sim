@@ -1,4 +1,4 @@
-"Loading simplispic core..."
+"Loading Environment ADT..."
 
 (define env-assoc (lambda (sym env)
   (if (null? env) 
@@ -6,4 +6,5 @@
       (let ((kvp (assoc sym (car env))))
            (if kvp kvp (env-assoc sym (cdr env)))  ))  ))
 
+"Loaded Environment ADT."
 

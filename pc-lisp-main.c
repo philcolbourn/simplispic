@@ -30,11 +30,6 @@
 #define EQ_TAG(a,b)      ( get_tag(a)==get_tag(b) )
 #define NE_TAG(a,b)      ( ! EQ_TAG(a,b) )
 
-// Primitive procedures
-
-extern ATOM (*primFns[SIZE])();
-extern int    freeFun;
-
 //#define MAKE_ATOM(tag,val) (ATOM){.val=(val), .tag=(tag)}
 //#define MAKE_PRIM(cfn)  (ATOM){.pfnval=(cfn), .pfntag=PFN}
 
@@ -87,79 +82,52 @@ int     main();
 
 ATOM   gEnv    = NIL;     // global environment
 
-ATOM (*primFns[SIZE])();
-
-ATOM _bad_primative_fn(){
-  fprintf( stderr, "ERROR: Undefined primitive function.\n" );
-  exit(1);
-}
 
 #define REGISTER_PRIMITIVES_0(i,name,sim_name){                            \
-  /**/MARK3;/**/                                                           \
+  MARK3;                                                                   \
   primFns[i] = prim_##name;                                                \
-  ATOM prim = eval(                                                        \
-    readString("(define " sim_name " (primitive () " #i "))"),gEnv );      \
-  /**/PEEK( "",prim );/**/                                                 \
-  /*KEEP3( cdr( prim ) );/**/   /* correct off all are defines*/           \
-  /**/KEEP3( NIL );/**/         /* correct iff all are defines*/           \
+  ATOM prim = eval( readString(                                            \
+    "(define " sim_name " (primitive " sim_name " () " #i "))"             \
+    ),gEnv );                                                              \
+      PEEK( "",prim );/**/                                                     \
+  KEEP3( NIL );                                                            \
 }
 
 #define REGISTER_PRIMITIVES_1(i,name,sim_name){                            \
-  /**/MARK3;/**/                                                           \
+  MARK3;                                                                   \
   primFns[i] = prim_##name;                                                \
-  ATOM prim = eval(                                                        \
-    readString("(define " sim_name " (primitive (a) " #i "))"),gEnv );     \
-  /**/PEEK( "",prim );/**/                                                 \
-  /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/            \
-  /**/KEEP3( NIL );/**/        /* correct iff all are defines*/            \
+  ATOM prim = eval( readString(                                            \
+    "(define " sim_name " (primitive " sim_name " (a) " #i "))"            \
+    ),gEnv );                                                              \
+      PEEK( "",prim );/**/                                                     \
+  KEEP3( NIL );                                                            \
 }
 
 #define REGISTER_PRIMITIVES_2(i,name,sim_name){                            \
-  /**/MARK3/**/;                                                           \
+  MARK3;                                                                   \
   primFns[i] = prim_##name;                                                \
-  ATOM prim = eval(                                                        \
-    readString( "(define " sim_name " (primitive (a b) " #i "))"),gEnv );  \
-  /**/PEEK( "",prim );/**/                                                 \
-  /*KEEP3( cdr( prim ) );/**/  /* correct iff all are defines*/            \
-  /**/KEEP3( NIL );/**/        /* correct iff all are defines*/            \
+  ATOM prim = eval( readString(                                            \
+    "(define " sim_name " (primitive " sim_name " (a b) " #i "))"          \
+    ),gEnv );                                                              \
+      PEEK( "",prim );/**/                                                     \
+  KEEP3( NIL );                                                            \
 }
 
 void boot(){
-  int i;
+  //int i;
   fputs( "Booting...\n",stderr );
-  freePairs = make_par(1);               // [1] is first free pair
-
-  //symbol_init();
+  pair_init();
   string_init();
-  for (i=0; i<SIZE; i++){
-    ATOM p = make_par(i);       
-    _set_car( p,MTY );  // do before chaining into freelist
-    _set_cdr( p,MTY );
-    _set_gcm( p,0 );                       // mark all in use
-    _set_mrk( p,0 );
-    _set_ref( p,0 );
-    _set_mem( p,make_mem( (i+1)%SIZE ) );  // chain free cells
-    //_set_bak( p,make_bak( (i-1)%SIZE ) );
-    //symbols[i].name[0] = 0;
-    //symbols[i].len = 0;
-    //_strcpy( symbols[i].name,"UNDEF SYM",10 );
-    //strings[i]         = "UNDEF STR";
-    primFns[i]         = _bad_primative_fn;
-    //sar[i].val         = 0;
-    //if ( i==1 ) exit(1);
-  }
-  //_set_mem( make_par(i-1), NIL );  // last one -> NIL, not make_mem(0)
-  usedPairs = MEM0;               // [0] is used from begining
-  _set_mem( usedPairs,usedPairs );  // make circular
-  _set_bak( usedPairs,usedPairs );
-  //recycleSweeper = usedPairs;
-  lastUsedPair = usedPairs;
-  fputs( "Create global environment...\n",stderr );
+  primitive_init();
+  fputs( "Create global environment...",stderr );
   gEnv    = cons( NIL,NIL );  // global environment -> empty environment 
+      PEEK( "A",gEnv );
+  //exit(1);
   _inc_ref( gEnv );  // interpreter hold ref on environment
-  GLOBAL_MARK3;
-  lastUsedPair = gEnv;  // hack?
   _mem_print_used_pairs( "gEnv",gEnv,_global_save );
+  fputs( "Done.\n",stderr );
+  MARK3;
+  //lastUsedPair = gEnv;  // hack?
   // can't do this now with distinst NIL
   //_set_car( usedPairs,readString( "\"*used pairs*\"" ) );
 
@@ -185,26 +153,27 @@ void boot(){
 
   tag_env        = readString( "env"         );
   //null_env       = readString( "(define null-environment )" );
-
+  fputs( "Created keyword symbols.\n",stderr );
+ 
   fputs( "Create primitive procedures...\n",stderr );
   REGISTER_PRIMITIVES_1(  1,car           ,"car"             );
   REGISTER_PRIMITIVES_1(  2,cdr           ,"cdr"             );
   REGISTER_PRIMITIVES_2(  3,cons          ,"cons"            );
-  REGISTER_PRIMITIVES_2(  4,iadd          ,"iadd"            );
-  REGISTER_PRIMITIVES_2(  5,isub          ,"isub"            );
-  REGISTER_PRIMITIVES_2(  6,imul          ,"imul"            );
-  REGISTER_PRIMITIVES_2(  7,idiv          ,"idiv"            );
+  REGISTER_PRIMITIVES_2(  4,iadd          ,"int+"            );
+  REGISTER_PRIMITIVES_2(  5,isub          ,"int-"            );
+  REGISTER_PRIMITIVES_2(  6,imul          ,"int*"            );
+  REGISTER_PRIMITIVES_2(  7,idiv          ,"int/"            );
   REGISTER_PRIMITIVES_2(  8,eqp           ,"eq?"             );
-  REGISTER_PRIMITIVES_2(  9,equalp        ,"equal?"          );  // FIXME - make native
-  REGISTER_PRIMITIVES_1( 10,pairp         ,"pair?"           );
-  REGISTER_PRIMITIVES_1( 11,listp         ,"list?"           );  // FIXME - make native
-  REGISTER_PRIMITIVES_2( 12,ilt           ,"<"               );
-  REGISTER_PRIMITIVES_2( 13,igt           ,">"               );
-  REGISTER_PRIMITIVES_2( 14,ilte          ,"<="              );
-  REGISTER_PRIMITIVES_2( 15,igte          ,">="              );
-  REGISTER_PRIMITIVES_2( 16,ieq           ,"="               );
+//REGISTER_PRIMITIVES_2(  9,equalp        ,"equal?"          );
+//REGISTER_PRIMITIVES_1( 10,pairp         ,"pair?"           );
+  REGISTER_PRIMITIVES_1( 11,listp         ,"list?"           );  // FIXME: make native
+  REGISTER_PRIMITIVES_2( 12,ilt           ,"int<"            );
+  REGISTER_PRIMITIVES_2( 13,igt           ,"int>"            );
+  REGISTER_PRIMITIVES_2( 14,ilte          ,"int<="           );
+  REGISTER_PRIMITIVES_2( 15,igte          ,"int>="           );
+  REGISTER_PRIMITIVES_2( 16,ieq           ,"int="            );
 //REGISTER_PRIMITIVES_1( 17,atomp         ,"atom?"           );
-  REGISTER_PRIMITIVES_2( 18,and           ,"and"             );
+//REGISTER_PRIMITIVES_2( 18,and           ,"and"             );
 //REGISTER_PRIMITIVES_2( 19,or            ,"or"              );
   REGISTER_PRIMITIVES_2( 20,eval          ,"eval"            );
 //REGISTER_PRIMITIVES_1( 21,eval1         ,"eval1"           );
@@ -212,10 +181,10 @@ void boot(){
   REGISTER_PRIMITIVES_1( 23,display       ,"display"         );
   REGISTER_PRIMITIVES_1( 24,printa        ,"print"           );
 //REGISTER_PRIMITIVES_1( 25,nullp         ,"null?"           );
-  REGISTER_PRIMITIVES_2( 26,imod          ,"imod"            );
-  REGISTER_PRIMITIVES_2( 27,ishl          ,"<<"              );
+  REGISTER_PRIMITIVES_2( 26,imod          ,"int%"            );
+  REGISTER_PRIMITIVES_2( 27,ishl          ,"<<"              );  // prob. not std.
   REGISTER_PRIMITIVES_2( 28,ishr          ,">>"              );
-  REGISTER_PRIMITIVES_1( 31,procp         ,"proc?"           );
+//REGISTER_PRIMITIVES_1( 31,procp         ,"proc?"           );
   REGISTER_PRIMITIVES_2( 32,set_car       ,"set-car!"        );
   REGISTER_PRIMITIVES_2( 33,set_cdr       ,"set-cdr!"        );
 //REGISTER_PRIMITIVES_1( 34,set           ,"set"             );
@@ -231,13 +200,19 @@ void boot(){
   REGISTER_PRIMITIVES_1( 43,str_to_sym    ,"string->symbol"  );
   REGISTER_PRIMITIVES_2( 44,str_ref       ,"string-ref"      );
   REGISTER_PRIMITIVES_1( 45,string_length ,"string-length"   );
-  REGISTER_PRIMITIVES_1( 46,get_type_tag  ,"type"            );
-  PEEK( "",gEnv );
-  
+  REGISTER_PRIMITIVES_1( 46,get_num_tag   ,"tag"             );
+  REGISTER_PRIMITIVES_1( 47,get_num_val   ,"val"             );
+  fputs( "Created primitive procedures.\n",stderr );
+
+  PEEK( "",gEnv );  
   fputs( "Booted.\n",stderr );
-  //KEEP3(gEnv);  // FAILS
-  //KEEP3( cdr(pcar) );  // correct, assuming all these will be defines
-  _cm_check_mem();  // OK
+
+  fputs( "Checking memory consistency...",stderr );
+  KEEP3( gEnv );
+  _cm_check_mem();
+  _cm_check_mem_leak();
+  fputs( "Done.\n",stderr );
+
   fputs( "Booted and memory checked.\n",stderr );
 }
 
@@ -273,29 +248,16 @@ ATOM set( ATOM var,ATOM val,ATOM env ){
 
 ATOM pair( ATOM keys,ATOM vals ){ return make_alist( keys,vals ); }
 
-/*
-
-
-(define assoc (lambda (sym env)
-  (if (null? env) 
-      #f
-      (let ((kvp (atlist-assoc sym (car env))))
-           (if kvp kvp (assoc sym (cdr env)))  ))))
-  )
-        
-))
-*/
-
 // env is list of frames, a frame is an alist
 ATOM assoc( ATOM sym,ATOM env ){         // eg. ( ((k.v)) ((k.v) (k.v)) )
 ASSOC2:
-  //PEEK( "",sym );
-  //PEEK( "",env );
+      //PEEK( "",sym );
+      //PEEK( "",env );
   if ( is_null(env) ) return FAL;    // reached end of environment
   ATOM frame = car( env );              // first frame
-  //PEEK( "",frame );
+      //PEEK( "",frame );
   ATOM kvp = alist_assoc( sym,frame );
-  //PEEK( "",kvp );
+      //PEEK( "",kvp );
   if ( ! is_eq( kvp,FAL ) ){  // found
     return kvp;
   }
@@ -306,15 +268,15 @@ ASSOC2:
 
 // search local frame only
 ATOM local_assoc( ATOM sym,ATOM env ){         // eg. ( ((k.v)) ((k.v) (k.v)) )
-  //PEEK( "",sym );
-  //PEEK( "",env );
+      //PEEK( "",sym );
+      //PEEK( "",env );
   // required?
   if ( is_null(env) ) return FAL;    // reached end of environment
   ATOM frame = car( env );              // first frame
-  //PEEK( "",frame );
+      //PEEK( "",frame );
   //if ( ! is_null( cdr(env) ) ) PEEK( "",cadr( env ) );
   ATOM kvp = alist_assoc( sym,frame );
-  //PEEK( "",kvp );
+      //PEEK( "",kvp );
   if ( ! is_eq( kvp,FAL ) ){  // found
     return kvp;
   }
@@ -356,10 +318,12 @@ ATOM evalseq( ATOM seq,ATOM env ){
   if ( is_null(seq) )  return NIL;  // r4rs test bug 
   if ( is_null( cdr(seq) ) ){
     ATOM res = eval( car(seq),env );
+        //TRACE( res,TVAL );
     return res;
   }
   ATOM ignore = eval( car(seq),env );  // ignore result
   ATOM res = evalseq( cdr(seq),env );
+        //TRACE( res,TVAL );
   return res;
 }
 /*
@@ -395,11 +359,9 @@ a frame should also be a table eg. (frame (k.v) (k.v) ...)
 //          p-->[k][v]    v  
 //                       [k][v]
 
-ATOM make_frame( ATOM alst,ATOM env ){
-  //ATOM fra = cons( alst,car(env) );
-  ATOM fra = cons( alst,env );
-  //setcar( env,alst );
-  return fra;
+ATOM make_frame( ATOM a,ATOM e ){
+  ATOM f = cons( a,e );
+  return f;
 }
 
 /*
@@ -409,11 +371,11 @@ ATOM make_frame( ATOM alst,ATOM env ){
 */
 // add kvp to frame
 ATOM addKVPair3( ATOM kvp,ATOM env ){
-  //PEEK( "",kvp );
-  //PEEK( "",env );
-  EXITIF( ! is_kvp( kvp ),"kvp is not a key-value-pair",kvp );
+      //PEEK( "",kvp );
+      //PEEK( "",env );
+      EXITIF( ! is_kvp( kvp ),"kvp is not a key-value-pair",kvp );
   ATOM oldlist = car( env );
-  EXITIF( ! is_alist( oldlist ),"oldlist is not an alist",oldlist );
+      EXITIF( ! is_alist( oldlist ),"oldlist is not an alist",oldlist );
   ATOM newlist = extend_alist( kvp,oldlist );
   set_car( env,newlist );
   return newlist;
@@ -424,21 +386,29 @@ ATOM addKVPair3( ATOM kvp,ATOM env ){
 int loop=0;
 ATOM eval( ATOM exp,ATOM env ){
   ATOM e;
-  //display( exp );
-  //PEEK( "**********",exp );
-  //PEEK( "**********",env );
+      //display( exp );
+      //PEEK( "**********",exp );
+      //PEEK( "**********",env );
   //loop++;
   if ( is_self_eval(exp) ) return exp;
   if ( is_variable(exp)  ) return variable_value( exp,env );
   if ( is_quoted(exp)    ) return quoted_value( exp );
   MARK3;
 
-  if ( is_definition(exp)) RETURN3( eval_definition( exp,env ) );
+  if ( is_definition(exp)){
+        //PEEK( "do",exp );
+    RETURN3( eval_definition( exp,env ) );
+  }
   if ( is_set(exp)       ) RETURN3( eval_set( exp,env ) );
   if ( is_if(exp)        ) RETURN3( eval_if( exp,env ) );
   if ( is_cond(exp)      ) RETURN3( eval_cond_clauses( cdr(exp),env ) );
   if ( is_eval_list(exp) ) RETURN3( eval_list( exp,env ) );
-  if ( is_load(exp)      ) RETURN3( eval_load( exp,env ) );
+  if ( is_load(exp)      ){
+        //PEEK( "",exp );
+    ATOM res = eval_load( exp,env );
+        //PEEK( "",res );
+    RETURN3( res );
+  }
   // (eval exp env) special form since no need to evaluate env
   if ( is_eval(exp) ){       // exp = (eval exp env)
     ATOM exp1 = _2ND( exp );
@@ -454,16 +424,16 @@ ATOM eval( ATOM exp,ATOM env ){
   }
   // (apply proc args) special form since no need to evaluate anything
   if ( is_apply(exp) ){
-    //SYM_PEEK( "Apply",exp );
+        //SYM_PEEK( "Apply",exp );
     ATOM proc = eval ( _2ND(exp),env );
-    //SYM_PEEK( "Apply",proc );
-    EXITIF( is_null( proc ),"User function not defined in environment",exp );
-    EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
+        //SYM_PEEK( "Apply",proc );
+        EXITIF( is_null( proc ),"User function not defined in environment",exp );
+        EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = eval( _3RD(exp),env );
-    //SYM_PEEK( "Apply",args );
+        //SYM_PEEK( "Apply",args );
     ATOM res = apply( proc,args );
-    //SYM_PEEK( "Apply",res );
+        //SYM_PEEK( "Apply",res );
     RETURN3( res );
   }
   // (lambda (x) (car x)) special form since no eval
@@ -478,75 +448,79 @@ ATOM eval( ATOM exp,ATOM env ){
   }
   // (primitive (x) n) special form since no eval
   if ( is_primitive(exp) ){
-    //PEEK( "Primitive",exp );
+        //PEEK( "Primitive",exp );
     //ATOM proc = make_proc( exp,env );  // eg. ((primitive (x) 1) env G)
     //ATOM proc = make_prim_proc( exp,env );  // eg. ((primitive (x) 1) env G)
     ATOM proc = make_proc( exp,env );  // eg. ((primitive (x) 1) env G)
-    //PEEK( "Primitive",proc );
+    PEEK( "Primitive",proc );
     RETURN3( proc );
   }
   // must be user defined funtion so expand it eg. (kar (cons 1 2))
   // eg. ( (lambda (x) (car x)) (quote (1 2)) )
-  //PEEK( "app?",exp );
+      //PEEK( "app?",exp );
   if ( is_application(exp) ){
     ATOM proc = eval( app_proc(exp),env );
-    //PEEK( "",proc );
-    EXITIF( is_null( proc ),"User function not defined in environment",exp );
-    EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
+        //PEEK( "",proc );
+        EXITIF( is_null( proc ),"User function not defined in environment",exp );
+        EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
     // args are evaluated in current env
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = app_args(exp);
-    //PEEK( "",args );
+        //PEEK( "",args );
     ATOM vals = LIST_OF_VALUES( args,env );
-    //PEEK( "",vals );
+        //PEEK( "",vals );
     ATOM res = apply( proc,vals );
+        //TRACE( res,TVAL );
     RETURN3( res );
   }
   // FIXME: try an application
-  //PEEK( "SPECIAL APPLICATION",exp );
+    //PEEK( "SPECIAL APPLICATION",exp );
     ATOM proc = eval( car(exp),env );
-    //PEEK( "",proc );
-    EXITIF( is_null( proc ),"User function not defined in environment",exp );
-    EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
+        //PEEK( "",proc );
+        EXITIF( is_null( proc ),"User function not defined in environment",exp );
+        EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
     // args are evaluated in current env
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = LIST_OF_VALUES( cdr(exp),env );
-    //PEEK( "",args );
+        //PEEK( "",args );
     ATOM res = apply( proc,args );
+        //TRACE( res,TVAL );
     RETURN3( res );
   // what about labels? other forms?
-  EXIT( "I can't do this for some reason.",cons( exp,env ) );
+      EXIT( "I can't do this for some reason.",cons( exp,env ) );
   return NIL;  // silence clang warning
 }
 
 ATOM apply(ATOM proc, ATOM args){  // ((lambda (x) (car x)) env .. G)
   MARK3;
-  //PEEK( "",proc );
-  //PEEK( "",args );
+      //PEEK( "",proc );
+      //PEEK( "",args );
   if ( is_proc(proc) ){  // FIXME: not a lambda, but a closure
     ATOM func = proc_lambda( proc );
-  if ( is_primitive( func ) ){
-    //PEEK( "Primitive",proc );
-    //PEEK( "Primitive",args );
-    ATOM form = primitive_form( func );
-    ATOM cfun = primitive_cfun( func );
-    ATOM fEnv = proc_env( proc );
-    ATOM alst = pair( form,args ) ; // make (k.v) pairs for formal arguements
-    ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
-    ATOM (*fn)() = primFns[ get_num(cfun) ];  // cfun is index to primitive table
-    ATOM res = (*fn)( args,eEnv );  // special primitive function must process args
-    RETURN3( res );
-  }
-  if ( is_lambda(func) ){  // FIXME: not a lambda, but a closure
-    ATOM form = lambda_form( func );  // (x)
-    ATOM body = lambda_body( func );  // (car x) FIXME: single or list?
-    ATOM fEnv = proc_env( proc );  // get env procedure was defined in
-    ATOM alst = pair( form,args ) ; // make ((k.v)...) pairs for formal arguements
-    ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
-    ATOM res  = evalseq( body,eEnv  );  // eval sequence in extended env
-    RETURN3( res );
-  }
-  EXIT( "Unknown function",func );
+    if ( is_primitive( func ) ){
+          //PEEK( "Primitive",proc );
+          //PEEK( "Primitive",args );
+      ATOM form = primitive_form( func );
+      ATOM cfun = primitive_cfun( func );
+      ATOM fEnv = proc_env( proc );
+      ATOM alst = pair( form,args ) ; // make (k.v) pairs for formal arguements
+      ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
+      ATOM (*fn)() = primFns[ get_num(cfun) ];  // cfun is index to primitive table
+      ATOM res = (*fn)( args,eEnv );  // special primitive function must process args
+      //TRACE( res,4022 );
+      RETURN3( res );
+    }
+    if ( is_lambda(func) ){  // FIXME: not a lambda, but a closure
+      ATOM form = lambda_form( func );  // (x)
+      ATOM body = lambda_body( func );  // (car x) FIXME: single or list?
+      ATOM fEnv = proc_env( proc );  // get env procedure was defined in
+      ATOM alst = pair( form,args ) ; // make ((k.v)...) pairs for formal arguments
+      ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
+      ATOM res  = evalseq( body,eEnv  );  // eval sequence in extended env
+      //TRACE( res,4022 );
+      RETURN3( res );
+    }
+    EXIT( "Unknown function",func );
   }
   // FIXME: could do something special here like assume quoted
   EXIT( "Unknown",proc );
@@ -556,7 +530,7 @@ int size( ATOM a ){
   int s = 0;
   if ( is_eq( a,gEnv ) )  return 0;  // dont loop
   if ( ! is_pair(a) )  return 0;
-  //PEEK( "",a );
+      //PEEK( "",a );
   if ( is_eq( car(a),tag_env ) )  return 1;  // dont process environments
   return 1 + size( car(a) ) + size( cdr(a) );
 }
@@ -565,47 +539,54 @@ ATOM _global_save;
 int _prevMaxCount = 0;
 
 ATOM repl(){                            // read eval print loop
-  ATOM ret;
+  ATOM ret = readString( "????" );
   fprintf( stderr,"\nStart REPL...\n" );
+  MARK3;  // catches redefines of primitives
   while TRUE{
+    //REMARK3;  // if updated, redefines wont be gcd. with=6281,1:26 without=6164,1:26
     int _used = _usedPairCount;
-    GLOBAL_MARK3;
     ATOM exp = read();
     if ( is_eq( exp,END ) ){
+      KEEP3( ret );
+      //_cm_check_mem();
+      //_cm_check_mem_leak();
       fputs( "EOF\n", stderr );
       break;
     }
     fputs( "========================================\n", stderr );
     printa( exp );
     puts( "" );
-    //PEEK( "Env  : ",gEnv );
-    PEEK( "Read: ",exp );
-    ATOM ret = eval( exp,gEnv );
-    //fputs( "Print: ", stderr );
+        //PEEK( "Env  : ",gEnv );
+        PEEK( "Read: ",exp );
+    ret = eval( exp,gEnv );
     printa( ret );
-    PEEK( "Print:",ret );
+        PEEK( "Print:",ret );
     //fprintf( stderr,"Result size = %d\n",size( ret ) );
     /*
     if ( is_symbol( ret ) ){
-      PEEK( "symbol ",ret );
+        PEEK( "symbol ",ret );
       ATOM kvp = assoc( ret,gEnv );
-      PEEK( "",kvp );
+        PEEK( "",kvp );
       if ( ! is_eq( kvp,FAL ) ){
-        PEEK( "found ",kvp );
+          PEEK( "found ",kvp );
         fprintf( stderr,"Result true size = %d\n",size( kvp ) );
       }
     }
     */
-    GLOBAL_KEEP3( NIL );
-    //int _deltaUsed = _usedPairCount-_used;
-    //fprintf( stderr,"Pairs increased by %d\n",_deltaUsed );
-    //_ms( gEnv );
+    KEEP3( ret );
+    int _deltaUsed = _usedPairCount-_used;
+    fprintf( stderr,"Pairs increased by %d\n",_deltaUsed );
+    _deltaUsed = _usedPairCount-_used;
+    fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
+    fprintf( stderr,"      Used=%d\n",_usedPairCount  );
     //_deltaUsed = _usedPairCount-_used;
     //fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
-    _ms( gEnv );
+    //fprintf( stderr,"      Used=%d\n",_usedPairCount  );
     //_cm_check_mem();
+    //_cm_check_mem_leak();
     puts( "" );
   }
+  // we don't get here
   return ret;                             // return last thing
 }
 
@@ -615,11 +596,11 @@ int main(){
   in = stdin;
   setvbuf( in,buf,_IOLBF,BUF_SIZE );  // make stdin use my buffer
   repl();
-  //PEEK( "",gEnv );
+      //PEEK( "",gEnv );
   /*
   may be only place for this since all atoms must be ???
   */
-  //_cm_check_mem_leak();
+  _cm_check_mem_leak();
 
   fprintf( stderr,"Done.\n" );
   fprintf( stderr,"Free+Used =%d\n",_freePairCount+_usedPairCount  );
