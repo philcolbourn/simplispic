@@ -41,7 +41,7 @@ MAKE_PRIMITIVE_2( eval    );
 MAKE_PRIMITIVE_2( set_car );
 MAKE_PRIMITIVE_2( set_cdr );
 //MAKE_PRIMITIVE_2( set     );
-//MAKE_PRIMITIVE_2( apply   );
+MAKE_PRIMITIVE_2( apply   );
 MAKE_PRIMITIVE_2( str_ref );
 
 #define MAKE_NUM_PRIMITIVE_1( proc,cfun )                           \
@@ -156,7 +156,7 @@ MAKE_PRIMITIVE_2( eval    );
 MAKE_PRIMITIVE_2( set_car );
 MAKE_PRIMITIVE_2( set_cdr );
 //MAKE_PRIMITIVE_2( set     );
-//MAKE_PRIMITIVE_2( apply   );
+MAKE_PRIMITIVE_2( apply   );
 MAKE_PRIMITIVE_2( str_ref );
 //MAKE_PRIMITIVE_2( sym_ref );
 

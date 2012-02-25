@@ -179,6 +179,7 @@
 ;
 (define pc-test-count 0)  ; count errors
 (define pc-test-stop 1)   ; stop after this many errors
+;(define eval-macro #f)
 
 ; FIXME: let causes _cm_check_mem_leak to fail
 ; define version doe not
@@ -265,14 +266,14 @@
 ; display args separated by a leading space 
 ;
 (define displayn (lambda (a . r)
-  (cond ((null? a)   (error "displayn: nothing to do"))
+  (cond ((null? a)   '())
         (else        (display a) (display " "))  )
   (if (null? r) (newline) (apply displayn r))  ))
 
 ; print args separated by a leading space 
 ;
 (define printn (lambda (a . r)
-  (cond ((null? a)   (display "printn: nothing to do"))
+  (cond ((null? a)   '())
         ((string? a) (display a) (display " "))
         (else        (print a) (display " "))  )
   (if (null? r) (newline) (apply printn r))  ))
@@ -315,7 +316,6 @@
 ;
 (load "pc-adt-env.sim")
 (load "pc-streams.sim")
-
 
 
 ; FIXME: this need to go after all RxRS is defined

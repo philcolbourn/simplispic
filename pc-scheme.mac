@@ -22,13 +22,37 @@
         )     
         (else (extend-alist (make-kvp var exp) env))  )))
 
-
-(define var? (lambda (tem)
-  (if (symbol? tem)
-      (if (eq? (symbol-ref tem 0) #\?) 
-          (if (int> (symbol-length tem) 1) #t #f) 
+; Return true if a pattern variable
+; A variable is ?x where x is something
+;
+(define pat-var? (lambda (v)
+  (if (symbol? v)
+      (if (eq? (symbol-ref v 0) #\?) 
+          (if (int> (symbol-length v) 1) #t #f) 
           #f  )
       #f  )  ))
+
+(define pat-cond-tag (lambda (c) (car c)))
+
+      
+; Return condition of a pattern conditional variable
+;
+(define pat-cond-pred (lambda (c) (cadr c)))
+
+(define pat-cond-var (lambda (c) (caddr c)))
+
+; Rturn true if a pattern conditional
+; eg. ("req" atom? ?a) means pattern expects an atom
+;
+(define pat-cond? (lambda (c)
+  ;(displayn "pat-cond?  c=" c)
+  (if (pair? c)
+  (if (string? (pat-cond-tag c))
+  (if (pair? (cdr c))
+  (if (symbol? (pat-cond-pred c))
+  (if (pair? (cddr c))
+  (if (pat-var? (pat-cond-var c))  #t #f)  #f) #f ) #f) #f) #f)  ))
+
 
 (define char->num '(
   (#\0 . 0)
@@ -52,29 +76,58 @@
           #f  )
       #f  )  ))
 
-; does template match expression given environment
+; Apply a named predicte to a value
+; Pedicate is a symbol. eg. 'atom? and value is used as a list
+;
+(define test-cond? (lambda (p? a)
+  ;(displayn "test-cond?  p?=" p? "  a=" a)
+  (apply (eval1 p?) (list a))  ))
 
+;(define pc-apply (lambda (p . a)
+;  (p a)  ))
+
+;(apply cons '("car" "cdr"))
+;(define x 3)
+;(apply cons '(x 12))
+;(apply (eval1 'cons) '(x 12))
+;(define exp 3)
+
+;(test-cond? 'atom? exp)
+;exp
+;(exit 1)
+
+; does template match expression given environment
+;
 (define match (lambda (pat exp env)
   ;(displayn "match pat=[" pat "]  exp=[" exp "]  env=[" env "]")
   (cond 
-        ((eq? env #f) #f)
+        ((eq? env #f)     #f)
         ; SICP place
-        ;((eq? pat exp) env)
+        ;((eq? pat exp)    env)
         ((equal? pat exp) env)
-        ((var? pat)   ;(displayn "var=" pat)
-                      (match-or-define-variable (alist-assoc pat env) 
+        ((pat-var? pat)   ;(displayn "var=" pat)
+                          (match-or-define-variable (alist-assoc pat env) 
                                                 pat 
                                                 exp 
                                                 env)  )
-        ((pair? pat)  ;(displayn "pair=" pat)
-                      (if (pair? exp) 
-                          (match (cdr pat) 
-                                 (cdr exp) 
-                                 (match (car pat) (car exp) env)  )
-                          #f  ))
-        (else         ;(displayn "unknown list element") 
-                      #f)  )
-))
+;        ((pat-cond? pat)  (displayn "pat=" pat "  pat-cond-pred=" (pat-cond-pred pat) 
+;                                    "  pat-cond-var=" (pat-cond-var pat) "  exp=" exp)  )
+        ((pat-cond? pat)  ;(displayn "pat=" pat "  pat-cond-pred=" (pat-cond-pred pat) 
+                          ;          "  pat-cond-var=" (pat-cond-var pat) "  exp=" exp)
+                          (if (test-cond? (pat-cond-pred pat) exp)  ; exp matches conditional
+                              (match-or-define-variable (alist-assoc (pat-cond-var pat) env) 
+                                                        (pat-cond-var pat) 
+                                                        exp 
+                                                        env)  
+                              #f  ))
+        ((pair? pat)      ;(displayn "pair=" pat)
+                          (if (pair? exp) 
+                              (match (cdr pat) 
+                                     (cdr exp) 
+                                     (match (car pat) (car exp) env)  )
+                              #f  ))
+        (else             ;(displayn "unknown list element") 
+                          #f)  )  ))
 
 ; for a var, no need to perform macro expansion since we assume it is already
 ; done during read.
@@ -90,23 +143,23 @@
   ;(define pn I)
   (define make (lambda (tem)
     (cond 
-        ( (null? tem)  '() )
-        ( (var? tem)   (alist-lookup tem env) )
-        ( (atom? tem)  tem  )
-        ( (pair? tem)  (eval-macro (pn (cons (make (car tem)) 
-                                             (make (cdr tem))  ))))
-        (else          (displayn "make-exp: unknown template element" tem) #f )  )  ))
+        ( (null? tem)      '() )
+        ( (pat-var? tem)   (alist-lookup tem env) )
+        ( (atom? tem)      tem  )
+        ( (pair? tem)      (eval-macro (pn (cons (make (car tem)) 
+                                                 (make (cdr tem))  ))))
+        (else              (displayn "make-exp: unknown template element" tem) #f )  )  ))
   (make tem)  ))
 
 (define make-exp (lambda (tem env)
   ;(displayn "make-exp  tem=[" tem "]  env=[" env "]")
   (cond 
-        ( (null? tem)  '() )
-        ( (var? tem)   (alist-lookup tem env) )
-        ( (atom? tem)  tem  )
-        ( (pair? tem)  (eval-macro (cons (make-exp (car tem) env) 
-                                         (make-exp (cdr tem) env)  )))
-        (else          (displayn "make-exp: unknown template element" tem) #f )  )  ))
+        ( (null? tem)      '() )
+        ( (pat-var? tem)   (alist-lookup tem env) )
+        ( (atom? tem)      tem  )
+        ( (pair? tem)      (eval-macro (cons (make-exp (car tem) env) 
+                                             (make-exp (cdr tem) env)  )))
+        (else              (displayn "make-exp: unknown template element" tem) #f )  )  ))
 
   
 ; make expression using positional values
@@ -118,22 +171,22 @@
   ;(displayn "make-expn  tem=[" tem "]  ags=[" ags "]")
   (define make (lambda (tem)
     (cond 
-        ( (null? tem)  '() )
-        ( (var? tem)   (list-ref ags (var->ref tem)) )
-        ( (atom? tem)  tem  )
-        ( (pair? tem)  (cons (make (car tem)) 
-                             (make (cdr tem))  ))
-        (else          (displayn "make-expn: unknown template element" tem) #f)  )  ))
+        ( (null? tem)      '() )
+        ( (pat-var? tem)   (list-ref ags (var->ref tem)) )
+        ( (atom? tem)      tem  )
+        ( (pair? tem)      (cons (make (car tem)) 
+                                 (make (cdr tem))  ))
+        (else              (displayn "make-expn: unknown template element" tem) #f)  )  ))
   (make tem)  ))
 
 (define make-expna (lambda (tem ags)
   (cond 
-        ( (null? tem)  '() )
-        ( (var? tem)   (list-ref ags (var->ref tem)) )
-        ( (atom? tem)  tem  )
-        ( (pair? tem)  (cons (make-expna (car tem) args) 
-                             (make-expna (cdr tem) args)  ))
-        (else          (displayn "make-expna: unknown template element" tem) #f)  )  ))
+        ( (null? tem)      '() )
+        ( (pat-var? tem)   (list-ref ags (var->ref tem)) )
+        ( (atom? tem)      tem  )
+        ( (pair? tem)      (cons (make-expna (car tem) args) 
+                                 (make-expna (cdr tem) args)  ))
+        (else              (displayn "make-expna: unknown template element" tem) #f)  )  ))
 
 (define make-expn-keep (lambda (tem . args) (make-expna tem args)))
 
@@ -141,6 +194,8 @@
 ;
 (define macro-pat (lambda (macro) (car macro) ))
 (define macro-tem (lambda (macro) (cadr macro) ))
+(define macro-typ (lambda (macro) (caddr macro) ))
+(define macro-mes (lambda (macro) (cadddr macro) ))
 
 ; patern is (key . rest)
 ;
@@ -152,9 +207,9 @@
 ; an environment means we may be able to apply this macro
 ;
 (define eval-macro-apply (lambda (exp trans env)
-  (if env
-      (make-exp (macro-tem (car trans)) env)
-      (eval-macro-worker exp (cdr trans))  )  ))
+  (cond (env (displayn (macro-typ (car trans)) ":  " (macro-mes (car trans)))
+             (make-exp (macro-tem (car trans)) env)  )
+        (else (eval-macro-worker exp (cdr trans)))  )  ))
 
 ; see if there are any macros that can be applied
 ;
@@ -165,17 +220,61 @@
               (exp-tag exp)  )                   ; tag matches
          (eval-macro-apply exp 
                            trans 
-                           (match (macro-pat (car trans)) 
-                                  exp 
-                                  '()  )))
-        (else (eval-macro-worker exp (cdr trans)))  )  ))
+                           (match (macro-pat (car trans)) exp '())  ))
+        (else (eval-macro-worker exp (cdr trans)))  )  )) ; try next
+
+(define eval-macro-redo (lambda (exp trans new)
+  (if (eq? new exp) 
+      exp 
+      (eval-macro-redoer new trans)  )  ))
+
+(define eval-macro-redoer (lambda (exp trans)
+  (eval-macro-redo exp trans (eval-macro-worker exp trans))  ))
 
 ; expand macros using transformers
 ;         
-(define eval-macro (lambda (exp) (eval-macro-worker exp transformers) ))
+; old (define eval-macro (lambda (exp) (eval-macro-worker exp transformers) ))
+(define eval-macro-exp (lambda (exp) (eval-macro-redoer exp transformers) ))
+;(define x-eval (lambda (exp) (eval-macro-redoer exp x-trans) ))
 
+(define eval-macro (lambda (exp)
+      ;(display "do: (eval-macro ") (print exp) (display ") -> ")
+  (cond ((atom? exp) exp)
+        (else (eval-macro-exp (cons (eval-macro (car exp)) 
+                                    (eval-macro (cdr exp))  ))))  ))
+
+;(define  x-trans '(
+;  ((aaa ?a) (zzz ?a))
+;  ((bbb . ?a) (ccc . ?a))
+;  ((ccc . ?a) (zzz . ?a))
+;))
+
+;(x '(aaa 2))
+;(x '(aaa (aaa 2)))
+;(x '(aaa (aaa (aaa 2))))
+;(x '(aaa (aaa (aaa (aaa 2)))))
+;(x '(aaa (bbb (aaa 2) (bbb (aaa 1) (bbb 2) 3))))
+
+;(exit 1)
 
 ;;;;;;;;;; macro test area
+
+(apply (eval1 'atom?) 12)
+
+(delay 3)
+(delay (car (cons "car" "cdr")))
+(not 2)
+(not #f)
+(if #f "error" "ok")
+(if 3 "ok" "error")
+(if (not #f) "ok" "error")
+(and 3)
+(and #f)
+(define x '(#f 3))
+(and (car x) #f)
+(and (car x) #t)
+
+(exit 1)
 
 ;;;;;;;;;; benchmarking
 ; see old file circa 6/2/2012 for some pairs benchmarking data

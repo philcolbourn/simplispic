@@ -48,7 +48,7 @@ cat <<END > test.pcl
 ;(if (eq? 1 0) "1==0" "1!=0")
 ;(car (cons '() '()))
 
-(load "pc-r4rstest.sim")
+;(load "pc-r4rstest.sim")
                
 END
 

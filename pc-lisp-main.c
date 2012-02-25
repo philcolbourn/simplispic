@@ -202,6 +202,8 @@ void boot(){
   REGISTER_PRIMITIVES_1( 45,string_length ,"string-length"   );
   REGISTER_PRIMITIVES_1( 46,get_num_tag   ,"tag"             );
   REGISTER_PRIMITIVES_1( 47,get_num_val   ,"val"             );
+  REGISTER_PRIMITIVES_2( 48,apply         ,"apply"           );
+
   fputs( "Created primitive procedures.\n",stderr );
 
   PEEK( "",gEnv );  
@@ -424,14 +426,20 @@ ATOM eval( ATOM exp,ATOM env ){
   }
   // (apply proc args) special form since no need to evaluate anything
   if ( is_apply(exp) ){
-        //SYM_PEEK( "Apply",exp );
+        //PEEK( "Apply",exp );
     ATOM proc = eval ( _2ND(exp),env );
-        //SYM_PEEK( "Apply",proc );
-        EXITIF( is_null( proc ),"User function not defined in environment",exp );
-        EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
+        PEEK( "Apply",exp );
+        PEEK( "Apply",proc );
+        EXITIF( is_null( proc ),"User function not defined",exp );
+        EXITIF( is_eq( proc, FAL ),"User function not defined",exp );
+        EXITIF( is_atom( proc ),"User function returned an atom - procedure expected",
+                cons( proc,exp) );
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
+        PEEK( "Apply",_3RD(exp) );
     ATOM args = eval( _3RD(exp),env );
-        //SYM_PEEK( "Apply",args );
+    //ATOM args = evallst( _3RD(exp),env );
+    //ATOM args = _3RD(exp);
+        PEEK( "Apply",args );
     ATOM res = apply( proc,args );
         //SYM_PEEK( "Apply",res );
     RETURN3( res );
@@ -461,8 +469,9 @@ ATOM eval( ATOM exp,ATOM env ){
   if ( is_application(exp) ){
     ATOM proc = eval( app_proc(exp),env );
         //PEEK( "",proc );
-        EXITIF( is_null( proc ),"User function not defined in environment",exp );
-        EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
+        EXITIF( is_null( proc ),"User function not defined",exp );
+        EXITIF( is_eq( proc, FAL ),"User function not defined",exp );
+        EXITIF( is_atom( proc ),"User function returned an atom - procedure expeced",cons( proc,exp ) );
     // args are evaluated in current env
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = app_args(exp);
@@ -470,15 +479,16 @@ ATOM eval( ATOM exp,ATOM env ){
     ATOM vals = LIST_OF_VALUES( args,env );
         //PEEK( "",vals );
     ATOM res = apply( proc,vals );
-        //TRACE( res,TVAL );
+        //PEEK( "",res );
     RETURN3( res );
   }
   // FIXME: try an application
-    //PEEK( "SPECIAL APPLICATION",exp );
+    PEEK( "SPECIAL APPLICATION",exp );
     ATOM proc = eval( car(exp),env );
         //PEEK( "",proc );
-        EXITIF( is_null( proc ),"User function not defined in environment",exp );
-        EXITIF( is_atom( proc ),"User function returned an atom in environment",exp );
+        EXITIF( is_null( proc ),"User function not defined",exp );
+        EXITIF( is_eq( proc, FAL ),"User function not defined",exp );
+        EXITIF( is_atom( proc ),"User function returned an atom - procedure expeced",cons( proc,exp ) );
     // args are evaluated in current env
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
     ATOM args = LIST_OF_VALUES( cdr(exp),env );
@@ -487,7 +497,7 @@ ATOM eval( ATOM exp,ATOM env ){
         //TRACE( res,TVAL );
     RETURN3( res );
   // what about labels? other forms?
-      EXIT( "I can't do this for some reason.",cons( exp,env ) );
+      //EXIT( "I can't do this for some reason.",cons( exp,env ) );
   return NIL;  // silence clang warning
 }
 
@@ -526,6 +536,26 @@ ATOM apply(ATOM proc, ATOM args){  // ((lambda (x) (car x)) env .. G)
   EXIT( "Unknown",proc );
 }
 
+ATOM eval_macros( ATOM exp ){
+      //PEEK( "",exp );
+  ATOM kvp = assoc( kw_eval_macro,gEnv );
+      //PEEK( "",kvp );
+  if ( ! is_eq( kvp,FAL ) ){  // macro system booted
+    // FIXME: simplify this?
+    // exp -> (eval-macro (quote (exp))) - i think
+    MARK3;
+    ATOM nexp = cons( kw_eval_macro,cons( cons( kw_quote,cons( exp,NIL ) ),NIL ) );
+        //PEEK( "",exp );
+        PEEK( "##########",nexp );
+    ATOM res = eval( nexp,gEnv );
+        PEEK( "",res );
+    RETURN3( res );
+    //return res;
+  }
+      //PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
+  return exp;
+}
+
 int size( ATOM a ){
   int s = 0;
   if ( is_eq( a,gEnv ) )  return 0;  // dont loop
@@ -558,7 +588,9 @@ ATOM repl(){                            // read eval print loop
     puts( "" );
         //PEEK( "Env  : ",gEnv );
         PEEK( "Read: ",exp );
-    ret = eval( exp,gEnv );
+    ATOM mac = eval_macros( exp );    
+        PEEK( "Macro: ",mac );
+    ret = eval( mac,gEnv );
     printa( ret );
         PEEK( "Print:",ret );
     //fprintf( stderr,"Result size = %d\n",size( ret ) );

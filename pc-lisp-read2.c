@@ -248,31 +248,13 @@ ATOM read_token(){
 
 // FIXME: is this a read macro? no
 ATOM readQUOTE(){
-  ATOM atm = read_raw();
+  ATOM atm = read();  // was read_raw();
   ATOM lst = cons( atm,NIL );
   ATOM res = cons( kw_quote,lst );
   return res;
 }
 
-ATOM eval_macros( ATOM exp ){
-      //PEEK( "",exp );
-  ATOM kvp = assoc( kw_eval_macro,gEnv );
-      //PEEK( "",kvp );
-  if ( ! is_eq( kvp,FAL ) ){  // macro system booted
-    // FIXME: simplify this?
-    // exp -> (eval-macro (quote (exp))) - i think
-    MARK3;
-    ATOM nexp = cons( kw_eval_macro,cons( cons( kw_quote,cons( exp,NIL ) ),NIL ) );
-        //PEEK( "",exp );
-        //PEEK( "",nexp );
-    ATOM res = eval( nexp,gEnv );
-        //PEEK( "",res );
-    RETURN3( res );
-    //return res;
-  }
-      //PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
-  return exp;
-}
+
 
 ATOM read_raw(){
   ATOM t = read_token();
@@ -300,7 +282,7 @@ ATOM read(){
   if ( is_num(t) )                  return t;
   if ( is_str(t) )                  return t;
   if ( is_eq( t,make_chr(APOS) ) )  return readQUOTE();  // FIXME: can this be macro?
-  if ( is_eq( t,make_chr('(') )  )  return eval_macros( readLST() );
+  if ( is_eq( t,make_chr('(') )  )  return readLST();  //eval_macros( readLST() );
   if ( is_eq( t,make_chr(')') )  )  return t;
   if ( is_eq( t,make_chr(DOT) ) )   return t;
   if ( is_chr(t) )                  return t;
