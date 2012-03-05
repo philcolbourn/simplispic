@@ -256,6 +256,7 @@ ATOM readQUOTE(){
 
 
 
+/*
 ATOM read_raw(){
   ATOM t = read_token();
   if ( is_eq( t,make_chr(EOF) ) )   return t;
@@ -271,6 +272,7 @@ ATOM read_raw(){
   EXIT( "What is that?",t );
   return NIL;
 }
+*/
 
 ATOM read(){
   ATOM t = read_token();
@@ -397,7 +399,8 @@ ATOM readSYM(){
     EXITIF( i==(SYM_LEN-1),"Symbol too long",NIL);
   }    
   if ( c!=EOF ) ungetch(-c);
-  if ( i<=3 )  return make_sym( make_short_string( buf,i ) );
+      PEEK( "",make_num(i) );
+  //if ( i<=3 )  return make_sym( make_short_string( buf,i ) );
   return make_sym( reuse_str( buf,i ) );
 }
 
@@ -421,10 +424,13 @@ ATOM readSTR(){
   while ( c=getSTRch(),c>0 ){         // terminated by NUL or "
     buf[i++] = (char) c;  // added (char) valgrind help
     s->len = i;
-    buf[i] = (char) 0;
+    buf[i] = (char) 0;  // FIXME: not really required
     EXITIF( i==(STR_LEN-1),"String too long",NIL);
   }
-  if ( i<=3 )  return make_str( make_short_string( buf,i ) );
+  buf[i] = (char) 0;  // needed for ""
+      fprintf( stderr,"%s\n",buf );
+      PEEK( "",make_num(i) );
+  //if ( i<=3 )  return make_str( make_short_string( buf,i ) );
   return make_str( reuse_str( buf,i ) );
 }
 

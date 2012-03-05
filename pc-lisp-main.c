@@ -11,6 +11,7 @@
 
 // HEADER
 #include <string.h>
+#include <time.h>
 
 #include "pc-lisp-mem.c"
 #include "pc-lisp-gc.c"
@@ -70,6 +71,7 @@ extern int loop;
 extern ATOM   _global_save;
 
 ATOM    repl();
+void    _stats();
 int     main();
 
 // END HEADER
@@ -203,6 +205,11 @@ void boot(){
   REGISTER_PRIMITIVES_1( 46,get_num_tag   ,"tag"             );
   REGISTER_PRIMITIVES_1( 47,get_num_val   ,"val"             );
   REGISTER_PRIMITIVES_2( 48,apply         ,"apply"           );
+  REGISTER_PRIMITIVES_2( 49,slt           ,"string<?"        );
+  REGISTER_PRIMITIVES_2( 50,sgt           ,"string>?"        );
+  REGISTER_PRIMITIVES_2( 51,slte          ,"string<=?"       );
+  REGISTER_PRIMITIVES_2( 52,sgte          ,"string>=?"       );
+  REGISTER_PRIMITIVES_2( 53,seq           ,"string=?"        );
 
   fputs( "Created primitive procedures.\n",stderr );
 
@@ -219,6 +226,7 @@ void boot(){
 }
 
 ATOM exita( ATOM val ){
+  _stats();
   exit( get_val(val) );
   return NIL;
 }
@@ -411,31 +419,35 @@ ATOM eval( ATOM exp,ATOM env ){
         //PEEK( "",res );
     RETURN3( res );
   }
-  // (eval exp env) special form since no need to evaluate env
+  // (eval exp env) FIXME: oops! not special form after all!
   if ( is_eval(exp) ){       // exp = (eval exp env)
-    ATOM exp1 = _2ND( exp );
-    ATOM env1 = _3RD( exp );
+        //PEEK( "$$$$$$$$$$",exp );
+    ATOM exp1 = eval( _2ND( exp ),env );
+        //PEEK( "",exp1 );
+    ATOM env1 = eval( _3RD( exp ),env );
+        //PEEK( "",env1 );
     ATOM res = eval( exp1,env1 );
     RETURN3( res );
   }
-  // (eval1 exp) special form since need to evaluate exp in this env
+  // (eval1 exp) FIXME: not special form
   if ( is_eval1(exp) ){       // exp = (eval1 exp)
     ATOM exp1 = eval( _2ND(exp),env );
     ATOM res = eval( exp1,env );
     RETURN3( res );
   }
-  // (apply proc args) special form since no need to evaluate anything
+/*
+  // (apply proc args)
   if ( is_apply(exp) ){
-        //PEEK( "Apply",exp );
-    ATOM proc = eval ( _2ND(exp),env );
         PEEK( "Apply",exp );
+    ATOM proc = eval ( _2ND(exp),env );
+        //PEEK( "Apply",exp );
         PEEK( "Apply",proc );
         EXITIF( is_null( proc ),"User function not defined",exp );
         EXITIF( is_eq( proc, FAL ),"User function not defined",exp );
         EXITIF( is_atom( proc ),"User function returned an atom - procedure expected",
                 cons( proc,exp) );
     //ATOM args = evallst( ARGLIST(exp),env ) ;  // eg. (cons 1 2) -> (1 2)
-        PEEK( "Apply",_3RD(exp) );
+        //PEEK( "Apply",_3RD(exp) );
     ATOM args = eval( _3RD(exp),env );
     //ATOM args = evallst( _3RD(exp),env );
     //ATOM args = _3RD(exp);
@@ -444,6 +456,7 @@ ATOM eval( ATOM exp,ATOM env ){
         //SYM_PEEK( "Apply",res );
     RETURN3( res );
   }
+*/
   // (lambda (x) (car x)) special form since no eval
   if ( is_lambda(exp) ){
     ATOM proc = make_proc( exp,env );  // eg. ((lambda (x) (car x)) env G)
@@ -460,13 +473,15 @@ ATOM eval( ATOM exp,ATOM env ){
     //ATOM proc = make_proc( exp,env );  // eg. ((primitive (x) 1) env G)
     //ATOM proc = make_prim_proc( exp,env );  // eg. ((primitive (x) 1) env G)
     ATOM proc = make_proc( exp,env );  // eg. ((primitive (x) 1) env G)
-    PEEK( "Primitive",proc );
+        //PEEK( "Primitive",proc );
     RETURN3( proc );
   }
   // must be user defined funtion so expand it eg. (kar (cons 1 2))
   // eg. ( (lambda (x) (car x)) (quote (1 2)) )
       //PEEK( "app?",exp );
   if ( is_application(exp) ){
+        //PEEK( "",exp );
+        //PEEK( "",app_proc(exp) );
     ATOM proc = eval( app_proc(exp),env );
         //PEEK( "",proc );
         EXITIF( is_null( proc ),"User function not defined",exp );
@@ -483,7 +498,7 @@ ATOM eval( ATOM exp,ATOM env ){
     RETURN3( res );
   }
   // FIXME: try an application
-    PEEK( "SPECIAL APPLICATION",exp );
+    //PEEK( "SPECIAL APPLICATION",exp );
     ATOM proc = eval( car(exp),env );
         //PEEK( "",proc );
         EXITIF( is_null( proc ),"User function not defined",exp );
@@ -512,9 +527,11 @@ ATOM apply(ATOM proc, ATOM args){  // ((lambda (x) (car x)) env .. G)
           //PEEK( "Primitive",args );
       ATOM form = primitive_form( func );
       ATOM cfun = primitive_cfun( func );
+          //PEEK( "",cfun );
       ATOM fEnv = proc_env( proc );
       ATOM alst = pair( form,args ) ; // make (k.v) pairs for formal arguements
       ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
+      // was ATOM (*fn)() = primFns[ get_num(cfun) ];  // cfun is index to primitive table
       ATOM (*fn)() = primFns[ get_num(cfun) ];  // cfun is index to primitive table
       ATOM res = (*fn)( args,eEnv );  // special primitive function must process args
       //TRACE( res,4022 );
@@ -522,10 +539,15 @@ ATOM apply(ATOM proc, ATOM args){  // ((lambda (x) (car x)) env .. G)
     }
     if ( is_lambda(func) ){  // FIXME: not a lambda, but a closure
       ATOM form = lambda_form( func );  // (x)
+          //PEEK( "Lambda",form );
       ATOM body = lambda_body( func );  // (car x) FIXME: single or list?
+          //PEEK( "Lambda",body );
       ATOM fEnv = proc_env( proc );  // get env procedure was defined in
+          //PEEK( "Lambda",fEnv );
       ATOM alst = pair( form,args ) ; // make ((k.v)...) pairs for formal arguments
+          //PEEK( "Lambda",alst );
       ATOM eEnv = make_frame( alst,fEnv );  // extend procedure's env
+          //PEEK( "Lambda",eEnv );
       ATOM res  = evalseq( body,eEnv  );  // eval sequence in extended env
       //TRACE( res,4022 );
       RETURN3( res );
@@ -543,14 +565,14 @@ ATOM eval_macros( ATOM exp ){
   if ( ! is_eq( kvp,FAL ) ){  // macro system booted
     // FIXME: simplify this?
     // exp -> (eval-macro (quote (exp))) - i think
-    MARK3;
+    //MARK3;
     ATOM nexp = cons( kw_eval_macro,cons( cons( kw_quote,cons( exp,NIL ) ),NIL ) );
         //PEEK( "",exp );
-        PEEK( "##########",nexp );
+        //PEEK( "##########",nexp );
     ATOM res = eval( nexp,gEnv );
-        PEEK( "",res );
-    RETURN3( res );
-    //return res;
+        //PEEK( "",res );
+    //RETURN3( res );
+    return res;
   }
       //PEEK( "MACRO SYSTEM NOT BOOTED YET",exp );
   return exp;
@@ -611,18 +633,31 @@ ATOM repl(){                            // read eval print loop
     _deltaUsed = _usedPairCount-_used;
     fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
     fprintf( stderr,"      Used=%d\n",_usedPairCount  );
-    //_deltaUsed = _usedPairCount-_used;
-    //fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
-    //fprintf( stderr,"      Used=%d\n",_usedPairCount  );
     //_cm_check_mem();
     //_cm_check_mem_leak();
     puts( "" );
   }
-  // we don't get here
-  return ret;                             // return last thing
+  return ret;  // we don't get here
+}
+
+void _stats(){
+  FILE *f = stdout;
+  fprintf( f,"Stats:\n" );
+  fprintf( f,"Free+Used =%d\n",_freePairCount+_usedPairCount  );
+  fprintf( f,"      Free=%d\n",_freePairCount  );
+  fprintf( f,"      Used=%d\n",_usedPairCount  );
+  fprintf( f,"  Max Used=%d\n",_usedPairMaxCount  );
+  fprintf( f,"Recycled  =%d\n",_recyclePairCount );
+  fprintf( f,"    Inline=%d\n",_decRecyclePairCount );
+  fprintf( f,"     Swept=%d\n",_sweepPairCount );
+  fprintf( f,"    Reused=%d\n",_reusedPairCount );
+  fprintf( f,"Strings   =%d\n",freeStr );
+  //fprintf( f,"  Recycled=%d\n",_recycleStrCount );
+  fprintf( f,"Time (ms) =%ld\n",clock()/1000 );
 }
 
 int main(){
+  clock_t startTime = clock();
   fprintf( stderr,"\n\n\n\n\n\n\n\n\n\nStart\n" );
   boot();
   in = stdin;
@@ -635,16 +670,8 @@ int main(){
   _cm_check_mem_leak();
 
   fprintf( stderr,"Done.\n" );
-  fprintf( stderr,"Free+Used =%d\n",_freePairCount+_usedPairCount  );
-  fprintf( stderr,"      Free=%d\n",_freePairCount  );
-  fprintf( stderr,"      Used=%d\n",_usedPairCount  );
-  fprintf( stderr,"  Max Used=%d\n",_usedPairMaxCount  );
-  fprintf( stderr,"Recycled  =%d\n",_recyclePairCount );
-  fprintf( stderr,"    Inline=%d\n",_decRecyclePairCount );
-  fprintf( stderr,"     Swept=%d\n",_sweepPairCount );
-  fprintf( stderr,"    Reused=%d\n",_reusedPairCount );
-  fprintf( stderr,"Strings   =%d\n",freeStr );
-  //fprintf( stderr,"  Recycled=%d\n",_recycleStrCount );
+  _stats();
+  
   return 0;
 }
 

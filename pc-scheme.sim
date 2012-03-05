@@ -20,28 +20,26 @@
 
 (define + (lambda (s . a)
   (cond ((null? s) 0)
-        ((null? a) s)
+        ;((pair? s) (int+ (apply + s) (apply + a)))  ; add list elements too
+        ;((null? a) s)
         (else (int+ s (apply + a)))  )  ))
+
 
 ;(define * (lambda a
 ;  (if (null? a) 1 (int* (car a) (apply * (cdr a))  ))  ))
 
 (define * (lambda (s . a)
   (cond ((null? s) 1)
-        ((null? a) s)
+        ;((pair? s) (int* (apply * s) (apply * a)))
+        ;((null? a) s)
         (else (int* s (apply * a)))  )  ))
 
+; (- (3 4) 5) -> 0 - 3 - 4 - 5? or (3 + 4) - 5 = 2?
 (define - (lambda (s . a)
   (cond ((null? s) 0)
+        ;((pair? s) (int- ???))  ; FIXME: what could possibly go here?
         ((null? a) (int- 0 s))
         (else (int- s (apply + a)))  )  ))
-
-;(-)
-;(- 1)
-;(- -1)
-;(- 10 3)
-;(- -2 5)
-;(exit 1)
 
 ; division, quotient, remainder, modulo etc.
 
@@ -76,6 +74,7 @@
 (define make-int-op (lambda (op?)
   (define op (lambda (f . r)
     (cond ((null? f) #f)
+          ((pair? f) (apply op f))  ; not tested
           ((null? r) #t)
           ((op? f (car r)) (apply op r))
           (else        #f) 
@@ -173,6 +172,9 @@
   
 ; My test harness - based on r4rstest.scm
 ; Except I quote expression to test so I can allow macro expansion
+; FIXME: this may no longer be necessary since macro system
+; can convert an expression in total and just not incrementally
+; why do I feel like I am talking to myself?
 ;
 ; (pc-test expect expression)
 ; eg (pc-test 3 '(+ 1 2))
@@ -235,7 +237,10 @@
 (define cddddr (lambda (a) (cdr (cdr (cdr (cdr a))))) )
 
 
-; backup function for macro
+; Macros can simplify expressions to more primitive forms
+; but R4RS seems to require actual defined procedures.
+; These won't be used but I'll define them.
+; It also means I can use these to implement simplifications and warnings.
 ;
 (define not       (lambda (a) (if a #f #t)))
 (define abs       (lambda (a) (if (number? a) (if (int>= a 0) a (int- 0 a)) #f)))
@@ -261,7 +266,7 @@
 
 ; force a promise - force is not a special form
 ;
-(define force (lambda (p) (p))) 
+(define force (lambda (p) (if (atom? p) p (p)))) 
 
 ; display args separated by a leading space 
 ;
@@ -278,6 +283,12 @@
         (else        (print a) (display " "))  )
   (if (null? r) (newline) (apply printn r))  ))
 
+; need a basic error until macros loaded
+;
+(define error (lambda (mes . tem)
+  (printn "Error in" tem mes)  ))
+
+
 ;(define indent (lambda (n)
 ;  (if (= n 0) '() (progn (print "  ") (indent (- n 1))))  ))
 
@@ -288,24 +299,79 @@
   (display mess)
   (displayn args)  ))
 
+(define test-apply (lambda (fun . args)
+  (apply fun args)  ))
+
+(define test-test (lambda (expect fun . args)
+  (print (cons fun args))
+  (display "  ==> ")
+  ((lambda (res)
+    (print res) (newline)
+    (cond ((not (equal? expect res)) (display " BUT EXPECTED ")
+	                                   (print expect) (newline)
+	                                   #f  )
+          (else #t)  ))
+   (if (procedure? fun) (pc-apply fun args) (car args))  )  ))
+
+; Apply can take an 'odd' set of arguements
+; eg. a b c ... (some list)
+; and apparently it forms the required argument list
+; by (append (list a b c ...) (some list))
+; {1/3/2012: nepean river up 1m-ish due to constant rain}
+; (apply-args (3 4) ()) -> (3 4)
+; (apply-args 1 ((3 4))) -> (1 3 4)
+; (apply-args 1 (2 (3 4))) -> (1 2 3 4)
+;
+(define apply-args (lambda (a b)
+  (if (null? b) 
+      (if (list? a) 
+          a 
+          (error "should be a list" '(apply-args ?0 ?1) a b)  ) 
+      (cons a (apply-args (car b) (cdr b)))  )  ))
+  
+; Apply procedure to arguments
+; (apply proc a1 a2 ... args) -> (apply proc (append (list a1 a2 ...) args))
+;
+(define simple-apply apply)
+    
+(define apply (lambda (p a . r)
+  (if (null? r)
+      (simple-apply p a)
+      (simple-apply p (apply-args a r))  )  ))
+        
+;(test-test 7 pc-apply + (list 3 4))
+;(test-test 17 pc-apply + 10 (list 3 4))
+;(pc-apply pc-apply (list + 10 (list 3 4)))
+;(exit 1)
+
+; load other stuff
 
 (load "pc-lists.sim")
 (load "pc-math.sim")
-
-;;;;;;;;;;
-
-; need a basic error until macros loaded
-;
-(define error (lambda (mes . tem)
-  (printn "Error in" tem mes)  ))
-
-
 (load "pc-adt-kv.sim")
 (load "pc-adt-alist.sim")
+(load "pc-bin-tree.sim")
+
+; closure ADT
+;   (closure <proc> env G)
+;
+(define closure? (lambda (c) (match-taglist c 'closure)))
+(define closure-proc (lambda (c) (cadr c)))
+(define closure-env (lambda (c) (cdddr c)))
+
+; use implementation knowledge to get null-environment
+;
+(define null-environment (closure-env (lambda () 'nothing)))
+print null-environment
+
 
 ; load macros
 ;
 (load "pc-scheme.mac")
+
+;;;;;;;;;; should be RxRS compliant here
+;
+; except macros, vectors, strings, ...
 
 ; A more fancy error function can now be made
 ;
@@ -316,111 +382,46 @@
 ;
 (load "pc-adt-env.sim")
 (load "pc-streams.sim")
-
-
-; FIXME: this need to go after all RxRS is defined
-
-; closure ADT
-;   (closure <proc> env G)
-;
-(define (closure? c) (match-taglist c 'closure))
-(define (closure-proc c) (cadr c))
-(define (closure-env c) (cdddr c))
-
-; use implementation knowledge to get null-environment
-;
-(define null-environment (closure-env (lambda () 'nothing)))
-print null-environment
-
-(define make-promise (lambda (proc)
-  (let ((result-ready? #f)
-        (result #f))
-       (lambda ()
-               (if result-ready?
-                   result
-                   (let ((x (proc)))
-                        (if result-ready?
-                            result
-                            (begin (set! result-ready? #t)
-                                   (set! result x)
-                                   result  ))))))  ))
-
-(define make-promise-pc (lambda (proc)
-  (let ((result-ready? #f)
-        (result #f))
-       (lambda ()
-               (if result-ready?
-                   result
-                   (let ((x (proc)))
-                        (set! result-ready? #t)
-                        (set! result x)
-                        result  ))))  ))
-;make-promise
-
-;(define x (make-promise-pc (lambda () (+ 2 3))))
-;x
-;(force x)
-;(exit 1)
-
+(load "pc-promise.sim")
 
 ;;;;;;;;;; tests
-           
-; a version of car, cdr and cons using lambda
-;
-;(define kar (lambda (z) (z (lambda (p q) p))))
-;(define kdr (lambda (z) (z (lambda (p q) q))))
-;(define kons (lambda (x y) (lambda (m) (m x y))))
-
-; another version that is easier to understand but needs if
-;
-;(define kons2 (lambda (a b) (lambda (m) (if (eq? m 1) a b))))
-;(define kar2 (lambda (x) (x 1)))
-;(define kdr2 (lambda (x) (x 2)))
-
+  
+;(load "pc-unused.sim")
         
+(define prlist (lambda (a)
+  (if (null? (car a)) '() (pr (car a))) 
+  (cond ((null? (cdr a)) '())
+        ((atom? (cdr a)) (display " . ") (print (cdr a) ))
+        (else            (display " "  ) (prlist (cdr a)))  )  ))
+
+; Print in standard format an atom, pair or list
+; FIXME: make real print in future - need some way of printing characters
+;                
 (define pr (lambda (a)
-  (if (atom? a)
-      (print a)
-      (progn (print \() (pr (car a)) (pr (cdr a)) (print \)))  )
-))
+  (cond ((atom? a) (print a)   )  ; assuming (print a) return a
+        (else      (display "(") 
+                   (prlist a   )
+                   (display ")")
+                   a            ))  ))
+
+;pr
+
+;(pr #t)
+;(pr 3)
+;(pr 'symbol)
+;(pr "string")
+;(pr (cons "simple" "pair"))
+;(pr (list 'a "list" "of stuff"))
+;(pr (list '(a more) "complex" '(list)))
+;(exit 1)
 
 ;(define eval-cond (lambda (conds bindings)
 ;  (if ((eval (car (car conds)) bindings)
 ;      (eval (car (cdr (car conds))) bindings))
 ;      (eval-cond (cdr conds) bindings)  )  ))
 
-;; convert procedures into cps form
-;(define (cps-prim f)
-; (lambda args
-;  (let ((r (reverse args)))
-;   ;(print "r=")
-;   ;(print r)
-;   ((car r) (apply f
-;             (reverse (cdr r))))))  )
-
-;(define *& (cps-prim *))
-;(define +& (cps-prim +))
-;(+& 2 3 (lambda (x) (print x)))
-
-; FIXME: no map-car
-
-;(define (map f . a*)
-;  (let
-;    ((carof
-;       (lambda (a)
-;         (map-car car a)))
-;     (cdrof
-;       (lambda (a)
-;         (map-car cdr a)))
-;     (_map
-;       (lambda (a* r)
-;         (cond ((null? (car a*)) (reverse r))
-;           (else (_map (cdrof a*)
-;                 (cons (apply f (carof a*)) r)))))))
-;    (cond ((null? a*)
-;        (bottom '(too few arguments to map)))
-;      (else (_map a* '())))))
-
+;;;;;;;;;; Test compliance
+;
 (load "pc-r4rstest.sim")
 
 ;;;;;;;;;; keep last

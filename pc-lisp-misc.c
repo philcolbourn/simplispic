@@ -100,12 +100,16 @@ void dump( int s ){
 }
 
 void peek( char *m,ATOM a ){
-  if ( is_eq( a,EUL ) || is_eq( a,EFL ) || is_eq( a,NMT ) || is_atom(a) ){
-    fprintf( stderr,"%8s = %3d: tag=%d val=%d\n",m,a.atm,get_tag(a),get_val(a) );
+  if ( is_eq( a,EUL ) || is_eq( a,EFL ) || is_eq( a,NMT ) ){
+    fprintf( stderr,"%8s = %3d: tag=%d val=%d [",m,a.atm,get_tag(a),get_val(a) );
+    //fprinta( stderr,a );
+    //fprintf( stderr,"]\n" );
     return;
   }
   if ( ! is_pair( a ) ){
-    fprintf( stderr,"%8s === %3d: tag=%d val=%d\n",m,a.atm,get_tag(a),get_val(a) );
+    fprintf( stderr,"%8s === %3d: tag=%d val=%d [",m,a.atm,get_tag(a),get_val(a) );
+    fprinta( stderr,a );
+    fprintf( stderr,"]\n" );
     return;
   }
   fprintf( stderr,"[ %s = %3d:",m,get_val(a) );  

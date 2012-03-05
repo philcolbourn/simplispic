@@ -99,6 +99,11 @@ MAKE_PRED_1( procp    ,is_proc   );
 
 MAKE_PRED_2( eqp   ,is_eq    );
 //MAKE_PRED_2( equalp,equal    );
+MAKE_PRED_2( slt ,str_lt  );
+MAKE_PRED_2( sgt ,str_gt  );
+MAKE_PRED_2( slte,str_lte );
+MAKE_PRED_2( sgte,str_gte );
+MAKE_PRED_2( seq ,str_eq  );
 
 #endif
 
@@ -237,6 +242,11 @@ MAKE_PRED_1( procp    ,is_proc   );
 
 MAKE_PRED_2( eqp   ,is_eq    );
 //MAKE_PRED_2( equalp,equal    );
+MAKE_PRED_2( slt ,str_lt  );
+MAKE_PRED_2( sgt ,str_gt  );
+MAKE_PRED_2( slte,str_lte );
+MAKE_PRED_2( sgte,str_gte );
+MAKE_PRED_2( seq ,str_eq  );
 
 #endif
 #endif

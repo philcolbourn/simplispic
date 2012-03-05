@@ -126,8 +126,16 @@ ATOM make_alist( ATOM k,ATOM v ){  // (a b),(1 2) -> ((a . 1)(b . 2))
   if ( is_atom(k) )   // handle list-arg and dot pair case
     return cons( make_kvp( k,v ),NIL );
     
+/* changed to atom
   if ( is_null(v) ){
     ATOM p = make_kvp( car(k),NIL );
+    ATOM a = cons( p,make_alist( cdr(k),NIL ) );
+    return a;
+  }
+*/
+
+  if ( is_atom(v) ){
+    ATOM p = make_kvp( car(k),v );
     ATOM a = cons( p,make_alist( cdr(k),NIL ) );
     return a;
   }

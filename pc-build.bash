@@ -72,6 +72,7 @@ END
 time cat test.pcl | ./a.gcc.out       > result.gcc.out
 
 cat result.gcc.out
+#cat result.tim
 exit 1
 
 #try ./pc-r4rstest.bash 2>&1 | less

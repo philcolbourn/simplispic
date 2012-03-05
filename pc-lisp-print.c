@@ -110,7 +110,8 @@ void _print_flag( FILE *f,ATOM p ){
 }
 
 ATOM fprintSTR( FILE *f,ATOM a,int fmt ){
-  int s = get_str(a);
+  int s = get_str( a );
+/*
   //fprintf( f,"[$=%s L=%d\n",strings[s].text,strings[s].len );
   if ( s<=0 ){  // "" is 0
     s = -s;
@@ -118,8 +119,9 @@ ATOM fprintSTR( FILE *f,ATOM a,int fmt ){
     fprintf( f,printFormat[ get_tag(a) ][ fmt ],i,&s );
   }
   else{
+*/
     fprintf( f,printFormat[ get_tag(a) ][ fmt ],strings[ s ].len,strings[ s ].text ); 
-  }
+//  }
   return a;
 }
 

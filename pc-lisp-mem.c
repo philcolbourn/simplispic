@@ -70,6 +70,14 @@ extern int    freeStr;
        ATOM   str_to_sym( ATOM str );
        int    get_str_len( ATOM str );
        ATOM   str_ref( ATOM str,ATOM num );
+       char  *get_cstr( ATOM s );
+       int    str_cmp( ATOM a,ATOM b );
+
+       int    str_lt ( ATOM a,ATOM b );
+       int    str_lte( ATOM a,ATOM b );
+       int    str_eq ( ATOM a,ATOM b );
+       int    str_gte( ATOM a,ATOM b );
+       int    str_gt ( ATOM a,ATOM b );
 
 static void _cm_mark_all_pairs( int m );
 static void _cm_ensure_all_pairs_not_marked( int m );
@@ -110,6 +118,7 @@ enum TAGS {PAR=0, MEM=0, BAK=0, NUM=1, SYM=2, RE3=3, CHR=4, RE5=5, STR=6, RE7=7,
 //#include "pc-lisp-read2.c"
 #include "pc-lisp-misc.c"
 #include "pc-lisp-test.c"
+#include <string.h>
 
 #undef MAKE_ATOM_ADT
 
@@ -332,28 +341,66 @@ void string_init(){
   //strings[ freeStr ].len = 0;  // FIXME: why?
 }
 
-ATOM sym_to_str( ATOM sym ){ return make_str( get_sym(sym) ); }
-ATOM str_to_sym( ATOM str ){ return make_sym( get_str(str) ); }
+ATOM sym_to_str( ATOM a ){ return make_str( get_sym(a) ); }
+ATOM str_to_sym( ATOM a ){ return make_sym( get_str(a) ); }
 
-inline int get_str_len( ATOM str ){
-  int s = get_str(str);
-  if ( s<=0 ) return (-s) >> (3*8);
+inline int get_str_len( ATOM a ){
+  int s = get_str( a );
+//  if ( s<=0 ) return (-s) >> (3*8);
   return strings[ s ].len;
-
 }
 
-ATOM str_ref( ATOM str,ATOM ref ){
-  //PEEK( "",str );
-  //PEEK( "",ref );
-  //EXITIF( get_num(ref)<0,"Negative String or symbol ref",ref );
-  //EXITIF( get_num(ref)>=get_str_len(str),"String or symbol ref out of range",ref );
-  int s = get_str(str);
+ATOM str_ref( ATOM a,ATOM k ){
+  //PEEK( "",a );
+  //PEEK( "",k );
+  //EXITIF( get_num(k)<0,"Negative String or symbol ref",k );
+  //EXITIF( get_num(k)>=get_str_len(a),"String or symbol ref out of range",k );
+  int s = get_str( a );
+/*
   if ( s<=0 ){
     s = -s;
-    return make_chr( ((char *)&s)[ get_num(ref) ] );
+    return make_chr( ((char *)&s)[ get_num(k) ] );
   }
-  return make_chr( strings[ s ].text[ get_num(ref) ] );
+*/
+  return make_chr( strings[ s ].text[ get_num(k) ] );
 }
+
+// FIXME: this breaks short symbols and strings - probably a good thing
+
+char *get_cstr( ATOM a ){ 
+/*
+  int s = get_str( a );
+  if ( s<=0 ){
+    s = -s;
+    return (char *)&s;
+  }
+*/
+  return strings[ get_str(a) ].text;
+}
+
+int str_cmp( ATOM a,ATOM b ){
+  int i = get_str_len( a );
+  int j = get_str_len( b );
+  char *s = get_cstr( a );
+  char *t = get_cstr( b );
+  if ( i<j ){
+    int res = strncmp( s,t,i );
+    if ( res==0 ) return -1;
+    return res;
+  }
+  if ( i>j ){
+    int res = strncmp( s,t,j );
+    if ( res==0 ) return 1;
+    return res;
+  }
+  return strncmp( s,t,i );  // need n for short strings
+}
+
+int str_lt ( ATOM a,ATOM b ){ return str_cmp( a,b ) <  0; }
+int str_lte( ATOM a,ATOM b ){ return str_cmp( a,b ) <= 0; }
+int str_eq ( ATOM a,ATOM b ){ PEEK( "",a ); PEEK( "",b ); return str_cmp( a,b ) == 0; }
+int str_gte( ATOM a,ATOM b ){ return str_cmp( a,b ) >= 0; }
+int str_gt ( ATOM a,ATOM b ){ return str_cmp( a,b ) >  0; }
 
 /*
 Fundemental memory management functions
@@ -548,7 +595,7 @@ void _cm_clear_marks_on_atom( ATOM a,int m ){
 
 // these should only use mrk to check pair allocations and gc performance
 void _cm_check_mem(){
-      PEEK( "start",NIL );
+      //PEEK( "start",NIL );
       //WARNIF( is_null(freePairs),"freePairs should never be NIL!",freePairs );  // is null when no more free pairs!
   _cm_mark_all_pairs(99);
   _cm_clear_marks_on_free_pairs(99);
@@ -558,14 +605,14 @@ void _cm_check_mem(){
 }
 
 void _cm_check_mem_leak(){  // only run in repl after gc
-      PEEK( "start",NIL );
+      //PEEK( "start",NIL );
       //WARNIF( is_null(freePairs),"freePairs should never be NIL!",freePairs );
   _cm_mark_all_pairs(23);
   _cm_clear_marks_on_atom( gEnv,23 );  // clear marks in environment
   //_set_mrk( make_par(0),0 );  // required? yes, but why did it work without it for so long?
   _cm_clear_marks_on_free_pairs(23);  // fails if a free pair has no mark
   _cm_ensure_all_pairs_not_marked(23);  // any leaks?
-      PEEK( "done",NIL );
+      //PEEK( "done",NIL );
 }
 
 
