@@ -1,0 +1,56 @@
+
+; (k (v) l m)
+
+(define bin-key  (lambda (e) (car e)))
+(define bin-val  (lambda (e) (cadr e)))
+(define bin-less (lambda (e) (caddr e)))
+(define bin-more (lambda (e) (cadddr e)))
+
+
+
+(define bin-search (lambda (k b)
+      (displayn "(bin-search" k b ")")
+  (cond ((null? b)                #f)                           ; key not found in tree
+        ((eq? k (bin-key b))      b)                            ; key found
+        ((string<? k (bin-key b)) (bin-search k (bin-less b)))
+        ((string>? k (bin-key b)) (bin-search k (bin-more b)))
+        (else                     (error "oops"))  )  ))
+
+(define bin-insert (lambda (k v b)
+      (displayn "(bin-insert" k v b ")")
+  (cond ((null? b)                
+            (displayn k "is new key ")
+            (list k (list v) '() '()))          ; key not found in tree
+        ((eq? k (bin-key b))      
+            (displayn k "=" (bin-key b))
+            (list k (append (bin-val b) (list v)) (bin-less b) (bin-more b)))  ; key found. add v
+        ((string<? k (bin-key b)) 
+            (displayn k "<" (bin-key b))
+            (list (bin-key b) (bin-val b) (bin-insert k v (bin-less b)) (bin-more b)))
+        ((string>? k (bin-key b)) 
+            (displayn k ">" (bin-key b))
+            (list (bin-key b) (bin-val b) (bin-less b) (bin-insert k v (bin-more b)) ))
+        (else                     (error "oops"))  )  ))
+
+     
+;(string=? "a" "a")
+;(string<? "a" "b")
+;(string<? "b" "a")
+;(exit 1)     
+        
+(define t '())
+(set! t (bin-insert "k" "key" t))
+(set! t (bin-insert "a" "ant" t))
+(set! t (bin-insert "c" "cat" t))
+(define t (bin-insert "b" "bat" t))
+(define t (bin-insert "l" "lid" t))
+(define t (bin-insert "c" "cup" t))
+(define t (bin-insert "x" "xen" t))
+t
+
+(bin-val (bin-search "c" t))
+
+;(exit 1)
+
+
+
