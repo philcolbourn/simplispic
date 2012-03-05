@@ -1,0 +1,146 @@
+; math
+
+;(require error)
+
+; min and max
+;
+(define max2 (lambda (a b) (if (int> a b) a b)))
+(define min2 (lambda (a b) (if (int< a b) a b)))
+
+(define max (lambda (a . r)
+  (cond ((null? a)         (error ": need 1 or more arguments" '(max))   )
+        ((not (number? a)) (error ": number expected" '(max ?0 . ?1) a r))
+        ((null? r)         a                                             )
+        (else              (max2 a (apply max r))                        )  )  ))
+
+(define min (lambda (a . r)
+  (cond ((null? a)         (error ": need 1 or more arguments" '(min))   )
+        ((not (number? a)) (error ": number expected" '(min ?0 . ?1) a r))
+        ((null? r)         a                                             )
+        (else              (min2 a (apply min r))                        )  )  ))
+
+
+; Euclid's version
+;
+;(define (gcd-euclid a b)
+;  (if (= b 0)
+;      a
+;      (if (> b a) 
+;          (gcd-euclid (- b a) a) 
+;          (gcd-euclid (- a b) b)  )))
+;(? 1 '(gcd-euclid 1 2))      
+;(? 1 '(gcd-euclid 1 9))      
+;(? 9 '(gcd-euclid (* 7 9) (* 5 9)))      
+
+; gcd-ordered expects 2 ordered and positive values 
+;
+(define gcd-ordered (lambda (a b) 
+    ;(display "\n(gcd-ordered ") (print a) (display " ") (print b) (display ")\n")
+  (if (eq? b 0) a (gcd-ordered b (remainder a b)))  ))
+
+; Return gcd of any 2 positive integers
+;
+(define int-gcd (lambda (a b) 
+    ;(display "\n(int-gcd ") (print a) (display " ") (print b) (display ")\n")
+  (if (int> a b) (gcd-ordered a b) (gcd-ordered b a))  ))
+
+; Return gcd of a list of integers - recursive
+;
+;(define gcd (lambda (s . a)
+;  (cond ((null? s) 0)
+;        ((null? a) (abs s))
+;        (else      (int-gcd (abs s) (apply gcd a)))  )  ))
+      
+; Return gcd of a list of an interger and a list of integers
+; Assumes s is always a number
+;
+(define gcd-iter (lambda (s a)
+    ;(display "\n")
+    ;(display "\n(gcd-iter ") (print s) (display " ") (print a) (display ")\n")
+  (cond ((null? a) s)
+        (else      (gcd-iter (int-gcd s (abs (car a))) 
+                             (cdr a)  )))  ))
+; Return gcd of a list of zero or more integers - iterative
+;                             
+(define gcd (lambda (s . a)
+    ;(display "\n(gcd ") (print s) (display " ") (print a) (display ")\n")
+  (cond ((null? s) 0)                     ; 0 if no values
+        (else      (gcd-iter (abs s) a))  )  ))
+
+(? 0 '(gcd))
+(? 0 '(gcd 0))
+(? 1 '(gcd 1))
+(? 1 '(gcd -1))
+(? 1 '(gcd 1 3))
+(? 3 '(gcd 15 12 27))
+(? 4 '(gcd 0 4))
+(? 4 '(gcd -4 0))
+(? 4 '(gcd 32 -36))
+
+;(exit 1)
+      
+; Return lcm of 2 positive integers
+;      
+(define int-lcm (lambda (a b)
+    ;(display "\n(int-lcm ") (print a) (display " ") (print b) (display ")\n")
+  (int* (int/ a 
+              (int-gcd a b)  ) 
+        b  )  ))
+
+;(define lcm (lambda (s . a)
+;  (define slide (lambda (f r)
+;    ;(print f) (display '~) (print r) (display "\n")
+;    (cond ((null? f)        1)                      ; instead of error
+;          ((null? r)        f)                      ; only 1 arg
+;          (else (slide (lcm2 f (car r)) (cdr r)))  )  ))  ; do in pairs
+;  (slide s a)  ))
+
+; org=10682 let=10959
+
+; Return lcm of a positive integer and a list of integers
+;
+(define _lcm (lambda (f r)
+    ;(display "\n(_lcm ") (print f) (display " ") (print r) (display ")\n")
+  (cond ((null? f) 1)                         ; instead of error
+        ((null? r) f)                         ; only 1 arg
+        (else      (_lcm (int-lcm f (abs (car r)))
+                         (cdr r)  )))  ))
+
+; Return lcm of zero or more integers
+; This just gets first integer and makes a list of rest
+;
+(define lcm (lambda (s . a) 
+    ;(display "\n(lcm ") (print s) (display " ") (print a) (display ")\n")
+  (cond ((null? s) 1)                         ; instead of error
+        (else (_lcm (abs s) a))  )  ))
+        
+(abs -7)
+(? 7 '(abs -7))
+(? 1 '(lcm))
+(? 42 '(lcm 21 6))
+(? 42 '(lcm 6 21))
+(? 12 '(lcm 4 6))
+(? 0 '(lcm 0 12))
+(? 0 '(lcm 6 0))
+(? 4 '(gcd 32 36))
+(? 4 '(gcd 32 -36))
+(? 4 '(gcd -32 36))
+(? 4 '(gcd -32 -36))
+(? 288 '(lcm 32 36))
+(? 288 '(lcm 32 -36))
+(? 288 '(lcm -32 36))
+(? 288 '(lcm -32 -36))
+;(exit 1)
+
+; Return factorial of an integer
+;
+(define fact (lambda (n)
+  (if (eq? n 0)
+      1
+      (int* n (fact (int- n 1)))  )  ))
+
+(? 1 '(fact 0))
+(? 1 '(fact 1))
+(? 120 '(fact 5))
+
+

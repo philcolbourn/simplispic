@@ -1,0 +1,119 @@
+; list functions
+
+; These must not rely on macros
+
+
+; Return n-th element of a list - first element is 0
+;
+(define list-ref (lambda (a n)
+  (cond ((null? a) '()                          )
+        ((eq? n 0) (car a)                      )
+        (else      (list-ref (cdr a) (int- n 1)))  )  ))
+
+
+; Make a list variation
+;
+;(? '(1 2 3) '(list 1 2 (+ 1 2)))
+;(define pc-list3 (lambda (first . rest) (cons first rest) ) )
+
+
+; Return a single list made by appending 2 lists together
+;
+(define _append (lambda (a b)
+  (cond ((null? a) b)
+        ((null? b) a)
+        (else      (cons (car a) 
+                         (_append (cdr a) b)  )))  ))
+        
+; Return a single list made by appending a list to a list of lists
+;
+(define _append-lists (lambda (s a)
+  (cond ((null? a) s                           )
+        (else      (_append-lists (_append s (car a)) 
+                                  (cdr a)  )))  ))
+        
+        
+; Return a single list made by appending multiple lists together
+;
+(define append (lambda (s . a)
+  (cond ((null? a) s                  )
+        (else      (_append-lists s a))  )  ))
+
+
+;(? '(1 2) '(_append '(1 2)))
+;(exit 2)
+;(? '(1 2) '(_append '(1 2) '()))
+;(? '(1 2) '(_append '() '(1 2)))
+;(? '(1 2 3 4) '(_append '(1 2) '(3 4)))
+;(? '(1 2 . 3) '(_append '(1 2) 3))
+;(? '(1 2 3 . 4) '(_append '(1 2) '(3 . 4)))
+
+; Return a list with elements in reverse order
+;            
+(define reverse (lambda (a)
+  (if (null? a)
+     '()
+     (_append (reverse (cdr a)) (list (car a)))  )  ))
+
+
+; Return tail of list from k-th element - k starts at 0
+;
+(define list-tail (lambda (x k)
+  (if (eq? k 0)
+      x
+      (list-tail (cdr x) (int- k 1))  )  ))
+
+
+
+; Return a list of results from application
+; a function to car of each element of a list.
+;
+(define map-list (lambda (f l)
+  (if (null? l)
+    '()
+     (cons (f (car l)) 
+           (map-list f (cdr l))  ))  ))
+
+; Apply a function to car of each element of a list - return 'done
+;
+(define for-each (lambda (f l)
+	(cond ((null? l) 'done)
+        (else      (f (car l))
+	                 (for-each f (cdr l))  ))  ))
+
+;(? '(1 4 9) '(for-each (lambda (x) (printerr (* x x))) '(1 2 3)))
+
+; FIXME: not really map
+
+(define map map-list)
+
+; Return sublist begining with a member or #f
+;
+(define member (lambda (x l)
+  (cond ((null? l)          #f)
+        ((equal? x (car l)) l)
+        (else               (member x (cdr l)))  )  ))
+
+(define memq (lambda (x l)
+  (cond ((null? l)       #f)
+        ((eq? x (car l)) l)
+        (else            (memq x (cdr l)))  )  ))
+
+(define memv (lambda (x l)
+  (cond ((null? l)        #f)
+        ((eqv? x (car l)) l)
+        (else             (memv x (cdr l)))  )  ))
+
+; another member?
+;
+(define member? member)
+           
+; Return #t if is atm a member of an improper list?
+;
+;(define member-imp? (lambda (a l)
+;  (cond ((null? l)       #f                     )
+;        ((eq? a (car l)) #t                     )
+;        ((eq? a (cdr l)) #t                     )
+;        (else            (member-imp? a (cdr l)))  )  ))
+
+

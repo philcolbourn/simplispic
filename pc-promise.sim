@@ -1,0 +1,34 @@
+; Promises. promises.
+;
+(define make-promise (lambda (proc)
+  (let ((result-ready? #f)
+        (result #f))
+       (lambda ()
+               (if result-ready?
+                   result
+                   (let ((x (proc)))
+                        (if result-ready?
+                            result
+                            (begin (set! result-ready? #t)
+                                   (set! result x)
+                                   result  ))))))  ))
+
+; Why is second if required?
+; work thou this slowly to see why it is no good
+;
+(define make-promise-pc (lambda (proc)
+  (let ((result-ready? #f)
+        (result #f))
+       (lambda ()
+               (if result-ready?
+                   result
+                   (let ((x (proc)))
+                        (set! result-ready? #t)
+                        (set! result x)
+                        result  ))))  ))
+
+;(define x (make-promise-pc (lambda () (+ 2 3))))
+;x
+;(force x)
+;(exit 1)
+
