@@ -1,0 +1,22 @@
+"Loading streams..."
+
+; stream-car
+;
+(define stream-car car)
+
+; stream-cdr
+;
+(define stream-cdr (lambda (p) (force (cdr p)) ))
+
+; show n elements of a stream
+;
+(define show-stream (lambda (s n)
+  (if (eq? n 0)
+    '(...)         ;; could not think of a better ending
+    (cons (car s)
+          (show-stream (stream-cdr s) (int- n 1))  ))  ))
+
+(define ss show-stream)
+
+"Streams loaded.\n"
+
