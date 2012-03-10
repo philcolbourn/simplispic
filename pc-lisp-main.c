@@ -12,6 +12,7 @@
 // HEADER
 #include <string.h>
 #include <time.h>
+#include <locale.h>
 
 #include "pc-lisp-mem.c"
 #include "pc-lisp-gc.c"
@@ -52,8 +53,6 @@ ATOM    exita( ATOM val );
 
 //ATOM    readLoop();
 ATOM    repl();
-ATOM    readString( char *s );
-//void   _strcpy( char *d,char *s,int n );
 
 ATOM    assoc( ATOM sym,ATOM env );
 ATOM    local_assoc( ATOM sym,ATOM env );
@@ -210,6 +209,7 @@ void boot(){
   REGISTER_PRIMITIVES_2( 51,slte          ,"string<=?"       );
   REGISTER_PRIMITIVES_2( 52,sgte          ,"string>=?"       );
   REGISTER_PRIMITIVES_2( 53,seq           ,"string=?"        );
+  REGISTER_PRIMITIVES_1( 54,string_width  ,"string-width"    );
 
   fputs( "Created primitive procedures.\n",stderr );
 
@@ -223,6 +223,7 @@ void boot(){
   fputs( "Done.\n",stderr );
 
   fputs( "Booted and memory checked.\n",stderr );
+  //exit(1);
 }
 
 ATOM exita( ATOM val ){
@@ -654,9 +655,17 @@ void _stats(){
   fprintf( f,"Strings   =%d\n",freeStr );
   //fprintf( f,"  Recycled=%d\n",_recycleStrCount );
   fprintf( f,"Time (ms) =%ld\n",clock()/1000 );
+/*
+  int c = 0;
+  for (;c<16384;c++){
+    fprintf( f,"%d_%lc  ",c,c );
+  }
+/**/
 }
 
 int main(){
+  setlocale( LC_ALL,"ISO-8859-1" );
+  setlocale( LC_ALL,"" );
   clock_t startTime = clock();
   fprintf( stderr,"\n\n\n\n\n\n\n\n\n\nStart\n" );
   boot();

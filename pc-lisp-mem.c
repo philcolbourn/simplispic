@@ -58,7 +58,9 @@ extern ATOM   lastUsedPair;
 //
 typedef struct{
   char *text;
-  int len;
+  int len;     // character length
+  int wid;     // column width
+  int siz;     // byte length
   int hash;
   int ref;
 } STRING;
@@ -69,6 +71,9 @@ extern int    freeStr;
        ATOM   sym_to_str( ATOM sym );
        ATOM   str_to_sym( ATOM str );
        int    get_str_len( ATOM str );
+       int    get_str_wid( ATOM a );
+       //int    get_str_siz( ATOM a );
+
        ATOM   str_ref( ATOM str,ATOM num );
        char  *get_cstr( ATOM s );
        int    str_cmp( ATOM a,ATOM b );
@@ -124,8 +129,8 @@ enum TAGS {PAR=0, MEM=0, BAK=0, NUM=1, SYM=2, RE3=3, CHR=4, RE5=5, STR=6, RE7=7,
 
 #define MAKE_ATOM_ADT( type,enum )  \
   ATOM make_##type( int i );        \
-  int get_##type( ATOM a );         \
-  int is_##type( ATOM a );
+  int   get_##type( ATOM a );       \
+  int    is_##type( ATOM a );
 
 MAKE_ATOM_ADT( num,NUM );
 MAKE_ATOM_ADT( par,PAR );
@@ -144,13 +149,13 @@ MAKE_ATOM_ADT( bak,BAK );
 //#define MAKE_NUM( val )    ( (ATOM){.numval=(val), .numtag=NUM} )
 
 #define EFL          MAKE_CON( 32 )    // end of free list
-#define EUL          MAKE_MEM( 0 )    // start and end of used list
-#define MTY          MAKE_CON( -9 )     // eMpTY cell in memory
-#define NMT          MAKE_CON( 31 )     // pair is unlnked from free and used lists
+#define EUL          MAKE_MEM(  0 )    // start and end of used list
+#define MTY          MAKE_CON( -9 )    // eMpTY cell in memory
+#define NMT          MAKE_CON( 31 )    // pair is unlnked from free and used lists
 
-#define NIL          MAKE_CON( -1 )     // NIL is an empty list - int=0
-#define FAL          MAKE_CON( 0 )     // !=0
-#define TRU          MAKE_CON( 1 )     // !=0
+#define NIL          MAKE_CON( -1 )    // NIL is an empty list - int=0
+#define FAL          MAKE_CON(  0 )    // !=0
+#define TRU          MAKE_CON(  1 )    // !=0
 
 // ADTs
 
@@ -168,7 +173,7 @@ MAKE_ATOM_ADT( bak,BAK );
 
 #define MAKE_PAIR_SET_AND_GET( type,name )  \
   type _set_##name( ATOM par,type name );   \
-  type _##name( ATOM par );
+  type     _##name( ATOM par );
 
 MAKE_PAIR_SET_AND_GET( ATOM,car );
 MAKE_PAIR_SET_AND_GET( ATOM,cdr );
@@ -208,12 +213,12 @@ extern int  _usedPairMaxCount;
 
 #undef MAKE_ATOM_ADT
 
-#define MAKE_ATOM_ADT( type,enum )                         \
-  ATOM make_##type( int i ) {                              \
-    return (ATOM){ .type##val=i, .type##tag=enum };        \
-  }                                                        \
-  int get_##type( ATOM a ) { return a.type##val; }         \
-  int is_##type( ATOM a ) { return a.type##tag == enum; }
+#define MAKE_ATOM_ADT( type,enum )                           \
+  ATOM make_##type( int i ) {                                \
+    return (ATOM){ .type##val=i, .type##tag=enum };          \
+  }                                                          \
+  int   get_##type( ATOM a ) { return a.type##val; }         \
+  int    is_##type( ATOM a ) { return a.type##tag == enum; }
 
 MAKE_ATOM_ADT( num,NUM );
 MAKE_ATOM_ADT( par,PAR );
@@ -305,7 +310,7 @@ ATOM _bad_primative_fn(){
 void primitive_init(){
   int i;
   fputs( "Initialize primitive storage...",stderr );
-  for (i=0; i<SIZE; i++){
+  for ( i=0;i<SIZE;i++ ){
     primFns[i] = _bad_primative_fn;
   }
   fputs( "Done.\n",stderr );
@@ -324,17 +329,21 @@ void string_init(){
   int i;
   fputs( "Initialize string and symbol storage...",stderr );
   for ( i=0;i<STR_SIZE;i++ ){
-    strings[i].text = "UNDEF STR";
-    strings[i].len  = 9;
-    strings[i].hash = 0;
-    strings[i].ref  = 0;
-    //sar[i].val      = 0;
+    strings[i].text  = "UNDEF STR";
+    strings[i].len   = 9;
+    strings[i].wid   = 9;
+    strings[i].siz   = 9;
+    strings[i].hash  = 0;
+    strings[i].ref   = 0;
+    //sar[i].val       = 0;
   }
   fputs( "Done.\n",stderr );
   fputs( "Creating string and symbol read buffer...",stderr );
-  strings[ 0 ].text = malloc( STR_LEN );
-  strings[ 0 ].len  = 0;
-  strings[ 0 ].ref  = 1; // never gc?
+  strings[ 0 ].text  = malloc( STR_LEN );
+  strings[ 0 ].len   = 0;
+  strings[ 0 ].wid   = 0;
+  strings[ 0 ].siz   = 0;
+  strings[ 0 ].ref   = 1; // never gc?
       EXITIF( strings[ 0 ].text==NULL,"malloc returned NULL!",NIL );
   fputs( "Done.\n",stderr );
   freeStr = 1;  // first free string or symbol storage
@@ -350,19 +359,22 @@ inline int get_str_len( ATOM a ){
   return strings[ s ].len;
 }
 
+inline int get_str_wid( ATOM a ){ return strings[ get_str( a ) ].wid; }
+//inline int get_str_siz( ATOM a ){ return strings[ get_str( a ) ].siz; }
+
 ATOM str_ref( ATOM a,ATOM k ){
   //PEEK( "",a );
   //PEEK( "",k );
   //EXITIF( get_num(k)<0,"Negative String or symbol ref",k );
   //EXITIF( get_num(k)>=get_str_len(a),"String or symbol ref out of range",k );
-  int s = get_str( a );
 /*
+  int s = get_str( a );
   if ( s<=0 ){
     s = -s;
     return make_chr( ((char *)&s)[ get_num(k) ] );
   }
 */
-  return make_chr( strings[ s ].text[ get_num(k) ] );
+  return make_chr( strings[ get_str(a) ].text[ get_num(k) ] );
 }
 
 // FIXME: this breaks short symbols and strings - probably a good thing

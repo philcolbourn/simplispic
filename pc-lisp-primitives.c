@@ -49,8 +49,10 @@ MAKE_PRIMITIVE_2( str_ref );
   MAKE_PRIMITIVE_1( proc )  /* register is as well */
 
 MAKE_NUM_PRIMITIVE_1( string_length,get_str_len );
-MAKE_NUM_PRIMITIVE_1( get_num_tag,get_tag      );
-MAKE_NUM_PRIMITIVE_1( get_num_val,get_val      );
+MAKE_NUM_PRIMITIVE_1( get_num_tag  ,get_tag     );
+MAKE_NUM_PRIMITIVE_1( get_num_val  ,get_val     );
+MAKE_NUM_PRIMITIVE_1( string_width ,get_str_wid );
+//MAKE_NUM_PRIMITIVE_1( string_size  ,get_str_siz );
 
 #define MAKE_OP_2( proc,op )                           \
   ATOM proc( ATOM a,ATOM b );                          \
@@ -174,8 +176,10 @@ MAKE_PRIMITIVE_2( str_ref );
   MAKE_PRIMITIVE_1( proc )  /* register is as well */
 
 MAKE_NUM_PRIMITIVE_1( string_length,get_str_len );
-MAKE_NUM_PRIMITIVE_1( get_num_tag,get_tag      );
-MAKE_NUM_PRIMITIVE_1( get_num_val,get_val      );
+MAKE_NUM_PRIMITIVE_1( get_num_tag  ,get_tag     );
+MAKE_NUM_PRIMITIVE_1( get_num_val  ,get_val     );
+MAKE_NUM_PRIMITIVE_1( string_width ,get_str_wid );
+//MAKE_NUM_PRIMITIVE_1( string_size  ,get_str_siz );
 
 
 #undef MAKE_OP_2

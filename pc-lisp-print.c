@@ -120,7 +120,8 @@ ATOM fprintSTR( FILE *f,ATOM a,int fmt ){
   }
   else{
 */
-    fprintf( f,printFormat[ get_tag(a) ][ fmt ],strings[ s ].len,strings[ s ].text ); 
+    //fprintf( f,printFormat[ get_tag(a) ][ fmt ],strings[ s ].len,strings[ s ].text ); 
+    fprintf( f,printFormat[ get_tag(a) ][ fmt ],strings[ s ].siz,strings[ s ].text ); 
 //  }
   return a;
 }

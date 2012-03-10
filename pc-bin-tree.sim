@@ -6,32 +6,112 @@
 (define bin-less (lambda (e) (caddr e)))
 (define bin-more (lambda (e) (cadddr e)))
 
-
-
 (define bin-search (lambda (k b)
-      (displayn "(bin-search" k b ")")
+      ;(displayn "(bin-search" k (if (null? b) "NULL" (bin-key b)) "b)")
   (cond ((null? b)                #f)                           ; key not found in tree
         ((eq? k (bin-key b))      b)                            ; key found
         ((string<? k (bin-key b)) (bin-search k (bin-less b)))
         ((string>? k (bin-key b)) (bin-search k (bin-more b)))
         (else                     (error "oops"))  )  ))
 
+;     ,1
+;  ,2-|
+;  |  `3
+;5-|
+;  |     ,6
+;  |  ,7-|
+;  |  |  `8
+;  `8-|
+;     `9
+
+; Display something n times
+;
+(define pad (lambda (s n)
+  (cond ((zero? n) '())
+        (else (display s) (pad s (- n 1)))  )  ))
+
+; Display a list of things
+; But a number n means display " " n times
+;
+(define display-list (lambda (l)
+  (cond ((null? l) '())
+        ((number? (car l)) (pad " " (car l)) (display-list (cdr l)))
+        (else (display (car l)) (display-list (cdr l)))  )  ))
+
+(define bin-display (lambda (b n)
+      ;(displayn "(bin-display" b n ")")
+  (cond ((null? b)                '())
+        (else  
+              (bin-display (bin-less b) (+ n 2))
+              (pad "--" n) (display (bin-key b)) (display "\n") 
+              (bin-display (bin-more b) (+ n 2))
+        ))  )) 
+
+(define bin-display-ok (lambda (b p n c)
+      ;(displayn "(bin-display" b n ")")
+  (cond ((null? b)                '())
+        (else  
+              (bin-display (bin-less b) (append p (list (if (eq? c "┌") " " n) " ")) "│" "┌")
+              (display-list p) (display c) (display (bin-key b)) 
+                (if (pair? (bin-less b)) 
+                  (if (pair? (bin-more b)) (display "─┤\n") (display "┘\n"))
+                  (if (pair? (bin-more b)) (display "┐\n") (display "\n"))  )
+              (bin-display (bin-more b) (append p (list (if (eq? c "└") " " n) " ")) "│" "└")
+        ))  )) 
+
+(define bin-display (lambda (b p n c)
+      ;(displayn "(bin-display" b n ")")
+      ;(print (string-length "┌─"))
+      ;(print (string-width "┌─"))
+  (cond ((null? b)                '())
+        (else  
+              (bin-display (bin-less b) 
+                           (append p (list (if (eq? c "┌─") (string-width c) n) 
+                                           (+ 1 (string-width (bin-key b)))  )) 
+                           "│ " 
+                           "┌─")
+              (display-list p) (display c) (display (bin-key b)) 
+              (if (pair? (bin-less b)) 
+                  (if (pair? (bin-more b)) 
+                      (display "─┤\n") 
+                      (display "─┘\n")  )
+                  (if (pair? (bin-more b)) 
+                      (display "─┐\n") 
+                      (display "\n")  ))
+              (bin-display (bin-more b) 
+                           (append p (list (if (eq? c "└─") (string-width c) n) 
+                                           (+ 1 (string-width (bin-key b)))  )) 
+                           "│ " 
+                           "└─")
+        ))  )) 
+
+(define bin-display-simple (lambda (b n c)
+      ;(displayn "(bin-display" b n ")")
+  (cond ((null? b)                '())  ; ↳↱↗↘┌└
+        (else  
+              (bin-display (bin-less b) (+ n 1) "┌")
+              (pad " " n) (display c) (display (bin-key b)) (display "\n")
+              (bin-display (bin-more b) (+ n 1) "└")
+        ))  )) 
+
+
 (define bin-insert (lambda (k v b)
-      (displayn "(bin-insert" k v b ")")
+      ;(displayn "(bin-insert" k v b ")")
   (cond ((null? b)                
-            (displayn k "is new key ")
-            (list k (list v) '() '()))          ; key not found in tree
+            ;(displayn k "is new key ")
+            (list k (list v) '() '())  )          ; key not found in tree
         ((eq? k (bin-key b))      
-            (displayn k "=" (bin-key b))
-            (list k (append (bin-val b) (list v)) (bin-less b) (bin-more b)))  ; key found. add v
+            ;(displayn k "=" (bin-key b))
+            (list k (append (bin-val b) (list v)) (bin-less b) (bin-more b))  )  ; key found. add v
         ((string<? k (bin-key b)) 
-            (displayn k "<" (bin-key b))
-            (list (bin-key b) (bin-val b) (bin-insert k v (bin-less b)) (bin-more b)))
+            ;(displayn k "<" (bin-key b))
+            (list (bin-key b) (bin-val b) (bin-insert k v (bin-less b)) (bin-more b))  )
         ((string>? k (bin-key b)) 
-            (displayn k ">" (bin-key b))
-            (list (bin-key b) (bin-val b) (bin-less b) (bin-insert k v (bin-more b)) ))
+            ;(displayn k ">" (bin-key b))
+            (list (bin-key b) (bin-val b) (bin-less b) (bin-insert k v (bin-more b)) )  )
         (else                     (error "oops"))  )  ))
 
+;. stop here
      
 ;(string=? "a" "a")
 ;(string<? "a" "b")
@@ -40,16 +120,20 @@
         
 (define t '())
 (set! t (bin-insert "k" "key" t))
+(set! t (bin-insert "b" "bat" t))
 (set! t (bin-insert "a" "ant" t))
 (set! t (bin-insert "c" "cat" t))
 (define t (bin-insert "b" "bat" t))
-(define t (bin-insert "l" "lid" t))
+(define t (bin-insert "d" "dog" t))
+(define t (bin-insert "llll" "lid" t))
 (define t (bin-insert "c" "cup" t))
-(define t (bin-insert "x" "xen" t))
+(define t (bin-insert "xxxxx" "xen" t))
+(define t (bin-insert "y" "yak" t))
 t
 
 (bin-val (bin-search "c" t))
-
+;(bin-display t 0 "*")
+(bin-display t '() " " "─")
 ;(exit 1)
 
 

@@ -240,17 +240,26 @@
 ; been applied and changed an expression.
 ; An identity transformation should not be considered a change (but it may not matter)
 
+
+
+; Place macros into binary tree to provide (log N)/N improvement (best case)
+; worse case is no improvement, current case is about (11+2)/(31+2)
+; 11 comparisons in search and an average of 2 macros to select
+;
+; this reduced time from 2.2 to 0.9
+; that includes bin-tree code and transformers -> transformers3 conversion!
+; Overall reduction of (3.4-0.9)/3.4 = 2.5/3.4 = 74%
+
 (define transformers3 '())
 
 (for-each (lambda (t) 
-            (set! transformers3 (bin-insert (pat-key (macro-pat t)) 
-                                            t 
-                                            transformers3  ))  ) 
+                  (set! transformers3 
+                        (bin-insert (pat-key (macro-pat t)) t transformers3)  )) 
           transformers  )
 
-transformers3
-(exit 1)
-
+; Display a graph of binary tree
+;
+;(bin-display transformers3 '() "" "")
 
 ; An environment means we can apply this macro
 ; Else try next pattern
@@ -294,6 +303,15 @@ transformers3
                    (eval-macro-set x (set-macros (car l)))  )  ; list of macros in set 
         (else      (eval-macro-match2 x (cdr l)))  )  ))   ; try next set
 
+(define eval-macro-x3 (lambda (x l)
+      ;(displayn "(eval-macro-x3 " x (if (null? l) "NIL" l) ")")
+  (cond (l (eval-macro-set x (bin-val l)))  ; no more translation macros
+        (else x))  ))  ; no macro found
+
+(define eval-macro-match3 (lambda (x l)
+      ;(displayn "(eval-macro-match3 " x "l)")
+  (cond ((atom? x) x)                      ; we don't translate atoms
+        (else (eval-macro-x3 x (bin-search (exp-tag x) transformers3)))  )  ))
 
 (define eval-macro-apply (lambda (x l e)
   (cond (e    (displayn (macro-message-type (car l)) ": " x (macro-message (car l)))
@@ -339,9 +357,13 @@ transformers3
 ;      (displayn "(eval-macro-exp" x ")")
 ;  (eval-macro-redoer x transformers)  ))
 
+;(define eval-macro-exp (lambda (x)
+;      (displayn "(eval-macro-exp" x ")")
+;  (eval-macro-match2 x transformers2)  ))
+
 (define eval-macro-exp (lambda (x)
-      (displayn "(eval-macro-exp" x ")")
-  (eval-macro-match2 x transformers2)  ))
+      ;(displayn "(eval-macro-exp" x ")")
+  (eval-macro-match3 x transformers3)  ))
 
 ; If car is a list, evaluate any macros
 ; Else evaluate macros in rest of list
@@ -358,11 +380,13 @@ transformers3
 ; equal? instead of eq? dropped time from 5.2 to 3.4 seconds
 ;
 (define eval-if-different (lambda (f x n)
-  (cond ((equal? x n) (displayn "no change") x)
-        (else (displayn "CHANGED!") (f n))  )  ))
+  (cond ((equal? x n) ;(displayn "no change") 
+                      x  )
+        (else         ;(displayn "CHANGED!") 
+                      (f n)  ))  ))
 
 (define eval-macro-list (lambda (x)
-      (displayn "(eval-macro-list" x ")")
+      ;(displayn "(eval-macro-list" x ")")
   (cond ((atom? x)       x)
         ((pair? (car x)) (eval-if-different eval-macro-exp 
                                             x
@@ -384,7 +408,7 @@ transformers3
 ;                                         (eval-macro-list (cdr x))  ))))  ))
 
 (define eval-macro (lambda (x)
-      (displayn "(eval-macro" x ")")
+      ;(displayn "(eval-macro" x ")")
   (cond ((atom? x) x)
         (else      (eval-macro-exp (cons (eval-macro (car x)) 
                                          (eval-macro-list (cdr x))  ))))  ))
@@ -461,10 +485,12 @@ transformers3
 ;(cond ((eq? 1 2) => (exit 1))
 ;      (else "ok")  )
       
+; I think this is my benchmark for macros
+;
 (define q (lambda () (let ((x 3)) (+ x 3))  ))
 q
 (q)
-;(exit 1)
+(exit 1)
 
 ;;;;;;;;;; benchmarking
 ; see old file circa 6/2/2012 for some pairs benchmarking data

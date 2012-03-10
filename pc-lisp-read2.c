@@ -19,6 +19,8 @@
 #include "pc-lisp-print.c"
 #include "pc-lisp-adt.c"
 
+#include <wchar.h>
+
 #define CR       ( '\n' )
 #define TAB      ( '\t' )
 #define ESC      ( '\\' )
@@ -43,10 +45,13 @@ enum {POS=1, NEG=-1};
 extern int     line;             // line being processed
 extern int     pos;              // character on line
 extern char    buf[BUF_SIZE+1];  // input buffer for nicer error messages
+//extern wchar_t    buf[BUF_SIZE+1];  // input buffer for nicer error messages
 extern int     nextc;            // my own ungetch storage
 extern int     next2c;
 extern char   *reads;            // reading from this string if not NULL
 extern char   *readp;            // cursor for reads
+//extern wchar_t   *reads;            // reading from this string if not NULL
+//extern wchar_t   *readp;            // cursor for reads
 
 extern FILE  *in;  // added for (load ...)
 
@@ -91,6 +96,7 @@ static ATOM    read_token  ();
 static ATOM    readQUOTE   ();
 static ATOM    let_star_to_let( ATOM kvps,ATOM body );
        ATOM    eval_macros( ATOM exp );
+       ATOM    readString( char *s );
 
 // END HEADER
 
@@ -103,10 +109,13 @@ static ATOM    let_star_to_let( ATOM kvps,ATOM body );
 int    line              = 1;     // track lines
 int    pos               = 0;
 char   buf[BUF_SIZE+1]   = "";    // buffer input for nicer error mssages
+//wchar_t   buf[BUF_SIZE+1]   = "";    // buffer input for nicer error mssages
 int    nextc             = 0;
 int    next2c            = 0;
 char  *reads             = NULL;  // reading from this string
 char  *readp             = NULL;  // reading cursor for reads
+//wchar_t  *reads             = NULL;  // reading from this string
+//wchar_t  *readp             = NULL;  // reading cursor for reads
 ATOM   kw_quote          = NIL;
 ATOM   kw_lambda         = NIL;
 ATOM   kw_closure        = NIL;
@@ -137,6 +146,27 @@ static void (*ungetch)( int c ) = ungetchNormal;
 FILE  *in;  // added for (load ...)
 
 // FIXME: put something like this back
+
+#define READEXIT( pred,mess,atom ){                                       \
+  if ( pred ){                                                            \
+        /*FILELINE;/**/                                                   \
+    fprintf( stderr,"\nRead error: %s on input string at position %d.\n", \
+            mess,(int)(readp-reads) );                                    \
+    fprintf( stderr,"%s\n",reads );                                      \
+    fprintf( stderr,"%*s\n",(int)(readp-reads+2),"^" );                  \
+    exit(1);                                                              \
+  }                                                                       \
+}
+
+#define READWARN( pred,mess,atom ){                                       \
+  if ( pred ){                                                            \
+        /*FILELINE;/**/                                                   \
+    fprintf( stderr,"\nRead warning: %s on input string at position %d.\n", \
+            mess,(int)(readp-reads) );                                    \
+    fprintf( stderr,"%s\n",reads );                                      \
+    fprintf( stderr,"%*s\n",(int)(readp-reads+2),"^" );                  \
+  }                                                                       \
+}
 
 /*
 void readExit(char *m){
@@ -169,6 +199,7 @@ int readchNormal(){
   }           
   pos++;
   //fputc( c,stderr );  // does not print CR or EOF
+  //if ( c<0 || c>127 ) fprintf( stderr,"%c[%3d]  ",c,c );
   return c;
 }
 
@@ -181,13 +212,13 @@ int readchString(){
 }
 
 void ungetchNormal( int c ){
-  EXITIF( next2c!=0,"Can't ungetch more than 2 characters",NIL );
+  READEXIT( next2c!=0,"Can't ungetch more than 2 characters",NIL );
   next2c = nextc;
   nextc = c;
 }
 
 void ungetchString( int c ){
-  EXITIF( readp==reads,"Can't ungetch - have not read anything",NIL );
+  READEXIT( readp==reads,"Can't ungetch - have not read anything",NIL );
   if ( c==EOF ) return;     // no need to ungetch a EOF
   readp--;                  // wind string pointer back 1
 }
@@ -198,7 +229,7 @@ int getch(){
     //fputc( c,stderr );
     if ( c>=SP || c==CR || c==TAB || c==EOF )  return c;
   }
-  EXIT( "NUL not expected",NIL );  // clang bug fixed
+  READEXIT( TRUE,"NUL not expected",NIL );  // clang bug fixed
   return NUL;
 }
 
@@ -207,6 +238,7 @@ ATOM read_token(){
   SKIP:
   c = getch();
   //fputc( c,stderr );        // print leading token character
+  //if ( c<0 || c>127 ) fprintf( stderr,"%c[%3d]  ",c,c );
   if ( c==EOF )            return make_chr(EOF);
   if ( c=='(' )            return make_chr(c);
   if ( c<=SP  )            goto   SKIP;            // skip whitespace
@@ -289,7 +321,7 @@ ATOM read(){
   if ( is_eq( t,make_chr(DOT) ) )   return t;
   if ( is_chr(t) )                  return t;
   if ( is_con(t) )                  return t;  // for constants
-  EXIT( "What is that?",t );
+  READEXIT( TRUE,"What is that?",t );
   return NIL;
 }
 
@@ -298,11 +330,27 @@ ATOM read(){
 #\space ->#\ 
 if len >1 lookup symbol 
 */
+/*
+UTF-8
+1 byte: 0xxxxxxx 128   0-127          ASCII
+Continuation bytes: 
+        10xxxxxx  64 128-191 -128--65 never first
+2 byte: 110xxxxx  32 192-223  -64--33
+3 byte: 1110xxxx  16 224-239  -32--17
+4 byte: 11110xxx   8 240-247  -16- -9 defined but RFC3629 stops at 10FFFF
+5 byte: 111110xx   4 248-251   -8- -5 defined but not for RFC3629
+6 byte: 1111110x   2 252-253   -4- -3 defined but not for RFC3629
+7 byte: 11111110     254       -2     available but not used
+8 byte: 11111111     255       -1     available but not used
+
+EOF = -1 which is not UTF-8
+
+*/
 
 int getCHRch(){
   int c = readch();
   if ( c>=SP  )          return c;
-  EXIT( "Illegal chararacter name '\\'",make_chr(c) );
+  READEXIT( TRUE,"Illegal chararacter name '\\'",make_chr(c) );
 }
 
 /*
@@ -339,7 +387,7 @@ void _strcpy( char *d,char *s,int n ){
     i++;
   }
   d[i] = s[i];  // EOS
-  EXITIF( i+1!=n,"Copied more then n chracters!",make_num(n) );
+  READEXIT( i+1!=n,"Copied more then n chracters!",make_num(n) );
 }
 
 void _strncpy( char *d,char *s,int n ){
@@ -347,7 +395,7 @@ void _strncpy( char *d,char *s,int n ){
   for ( i=0;i<n;i++ ){
     d[i] = s[i];
   }
-  EXITIF( i!=n,"Copied more then n chracters!",make_num(n) );
+  READEXIT( i!=n,"Copied more then n chracters!",make_num(n) );
 }
 
 // FIXME: combine? getDelimitedch(from,first delim,second delim)
@@ -359,7 +407,7 @@ int getSYMch(){ // return -char on non symbol except for escaped chars
     if ( c=='t' )        return TAB;
     if ( c>=SP  )        return c;   // place after n and t
     if ( c==EOF )        return c;
-    EXIT( "Illegal escaped char following '\\'",make_chr(c) );
+    READEXIT( TRUE,"Illegal escaped char following '\\'",make_chr(c) );
   }
   if ( c>')'  )          return c;   // above )
   if ( c>SP && c<'(' )   return c;   // space to below (
@@ -375,7 +423,7 @@ int getSTRch(){          // return -char on " except for escaped chars
     if ( c=='t' )        return TAB;
     if ( c>=SP  )        return c;   // place after n and t - includes "
     if ( c==EOF )        return c;
-    EXIT( "Illegal escaped char following '\\'",make_chr(c) );
+    READEXIT( TRUE,"Illegal escaped char following '\\'",make_chr(c) );
   }
   if ( c>QUOTE )         return c;   // above "
   if ( c>0 && c<QUOTE )  return c;   // space to below "
@@ -383,37 +431,70 @@ int getSTRch(){          // return -char on " except for escaped chars
   return -c;                         // else -c eg. NUL, "
 }
 
+/*
 int make_short_string( char *buf,int i ){
   int s = i << (3*8);                 // encode size of short string
   _strncpy( (char *)&s,buf,i );       // copy short string to atom
   return -s;
 }
+*/
 
 ATOM readSYM(){
   char *buf = strings[0].text;
   int i=0, c;
   while ( c=getSYMch(),c>0 ){
     buf[i++] = (char) c;
-    buf[i] = (char) 0;
-    strings[0].len = i;
-    EXITIF( i==(SYM_LEN-1),"Symbol too long",NIL);
+    //buf[i] = (char) 0;
+    //strings[0].len = i;
+    READEXIT( i==(SYM_LEN-1),"Symbol too long",NIL);
   }    
+  buf[i] = (char) 0;
+  //strings[0].siz = i;
+  //wchar_t wbuf[SYM_LEN];
+  //strings[0].len = mbstowcs( wbuf,buf,i );
+  //strings[0].wid = wcswidth( wbuf,i );
+  //if ( strings[0].len!=strings[0].wid ){
+  //  fprintf( stderr,"%s:  len=%d  siz=%d  wid=%d\n",
+  //                  strings[0].text,
+  //                  strings[0].len,
+  //                  strings[0].siz,
+  //                  strings[0].wid );
+  //  exit(1);
+  //}
   if ( c!=EOF ) ungetch(-c);
-      PEEK( "",make_num(i) );
+      //PEEK( "",make_num(i) );
   //if ( i<=3 )  return make_sym( make_short_string( buf,i ) );
   return make_sym( reuse_str( buf,i ) );
 }
 
-int reuse_str( char *buf,int len ){
+int reuse_str( char *buf,int n ){
   int j;
   for ( j=1 ; j<freeStr ; j++ ){
-    if ( strings[j].len==len && strcmp( strings[j].text,buf )==0 )  return j;
+    if ( strings[j].siz==n && strcmp( strings[j].text,buf )==0 ){
+      //fprintf( stderr,"Reused \"%s\"\n",strings[j].text );
+      return j;
+    }
   }
   freeStr++;
-  strings[ j ].text = malloc( len+1 );
-  EXITIF( strings[ j ].text==NULL,"malloc returned NULL!",NIL );
-  _strcpy( strings[ j ].text,buf,len+1 );
-  strings[ j ].len = len;
+  strings[ j ].text = malloc( n+1 );
+  READEXIT( strings[ j ].text==NULL,"malloc returned NULL!",NIL );
+  _strcpy( strings[ j ].text,buf,n+1 );
+  //strings[ j ].len = len;
+  //strings[ j ].len = mbstowcs( NULL,buf,0 );
+  //wchar_t wbuf[SYM_LEN];
+  strings[j].siz = n;
+  strings[j].len = mbstowcs( NULL,buf,0 );
+  strings[j].wid = strings[j].len;  // need mbswidth( wbuf );
+  /*
+  if ( strings[j].siz!=strings[j].wid ){
+    fprintf( stderr,"%s:  len=%d  siz=%d  wid=%d\n",
+                    strings[j].text,
+                    strings[j].len,
+                    strings[j].siz,
+                    strings[j].wid );
+    //exit(1);
+  }
+  */
   return j;
 }
 
@@ -423,13 +504,14 @@ ATOM readSTR(){
   int i=0,c;
   while ( c=getSTRch(),c>0 ){         // terminated by NUL or "
     buf[i++] = (char) c;  // added (char) valgrind help
-    s->len = i;
-    buf[i] = (char) 0;  // FIXME: not really required
-    EXITIF( i==(STR_LEN-1),"String too long",NIL);
+    //s->len = i;
+    //buf[i] = (char) 0;  // FIXME: not really required
+    READEXIT( i==(STR_LEN-1),"String too long",NIL);
   }
-  buf[i] = (char) 0;  // needed for ""
-      fprintf( stderr,"%s\n",buf );
-      PEEK( "",make_num(i) );
+  buf[i] = (char) 0;  // needed to terminate all strings
+  //s->len = mbstowcs( NULL,s->text,0 );
+      //fprintf( stderr,"%s\n",buf );
+      //PEEK( "",make_num(i) );
   //if ( i<=3 )  return make_str( make_short_string( buf,i ) );
   return make_str( reuse_str( buf,i ) );
 }
@@ -470,7 +552,7 @@ int getCOMch(){
   int c;
   while ( ( c=readch() ) )  // clang bug fixed
     if ( c>=SP || c==CR || c==EOF )  return c;
-  EXIT( "This character is not allowed in a comment",make_chr(c) );
+  READEXIT( TRUE,"This character is not allowed in a comment",make_chr(c) );
   return NUL;
 }
 
@@ -493,23 +575,23 @@ ATOM readLST(){
   if ( is_eq( t,EOL ) )  return NIL;  // got EOL
   if ( is_eq( t,EOP ) ){  // got '.' of pair
     ATOM cdr = read();
-    EXITIF( is_eq( cdr,END ),"Got EOF after '.'",NIL );
-    WARNIF( is_eq( cdr,EOL ),"Got ')' after '.' - assumed ')'",NIL );
+    READEXIT( is_eq( cdr,END ),"Got EOF after '.'",NIL );
+    READWARN( is_eq( cdr,EOL ),"Got ')' after '.' - assumed ')'",NIL );
     ATOM ignore = read();
-    EXITIF( ! is_eq( ignore,EOL ),"Expecting ')' after cdr",cdr );
+    READEXIT( ! is_eq( ignore,EOL ),"Expecting ')' after cdr",cdr );
     //PEEK( "",cdr );
     return cdr;
   }  
-  EXITIF( is_eq( t,END ),"Got EOF - expecting ')'",NIL );
+  READEXIT( is_eq( t,END ),"Got EOF - expecting ')'",NIL );
   ATOM rest = readLST();
   //PEEK( "",rest );
   ATOM ret = cons( t,rest );
-  EXITIF( is_null(ret),"No free pairs for this list or pair",rest );
+  READEXIT( is_null(ret),"No free pairs for this list or pair",rest );
   //PEEK( "",ret );
   return ret;
 }
 
-ATOM readString(char *s){  // read eval string and return
+ATOM readString( char *s ){  // read eval string and return
   reads = readp = s;
   readch = readchString;
   ungetch = ungetchString;
