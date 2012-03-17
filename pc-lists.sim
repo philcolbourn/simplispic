@@ -39,15 +39,6 @@
   (cond ((null? a) s                  )
         (else      (_append-lists s a))  )  ))
 
-
-;(? '(1 2) '(_append '(1 2)))
-;(exit 2)
-;(? '(1 2) '(_append '(1 2) '()))
-;(? '(1 2) '(_append '() '(1 2)))
-;(? '(1 2 3 4) '(_append '(1 2) '(3 4)))
-;(? '(1 2 . 3) '(_append '(1 2) 3))
-;(? '(1 2 3 . 4) '(_append '(1 2) '(3 . 4)))
-
 ; Return a list with elements in reverse order
 ;            
 (define reverse (lambda (a)
@@ -63,7 +54,25 @@
       x
       (list-tail (cdr x) (int- k 1))  )  ))
 
+; Return tail of list
+;
+(define _tail (lambda (x)
+  (if (atom? (cdr x)) 
+      x                       ; 3
+      (_tail (cdr x))  )  ))  ; 4
 
+(define tail (lambda (x)
+  (cond ((null? x) '())               ; 1
+        ((atom? x) (error '(tail ?1) "requires a list" (list x) ) x) ; 0
+        (else      (_tail x))  )  ))  ; 2
+
+(pc-test 3    '(tail 3        ))  ; 0
+(pc-test '()  '(tail '()      ))  ; 1
+(pc-test '(1) '(tail '(1)     ))  ; 2,3
+(pc-test '(2) '(tail '(1 . 2) ))  ; 2,3
+(pc-test '(2) '(tail '(1 2)   ))  ; 2,4
+
+(define head car)
 
 ; Return a list of results from application
 ; a function to car of each element of a list.
@@ -104,9 +113,9 @@
         ((eqv? x (car l)) l)
         (else             (memv x (cdr l)))  )  ))
 
-; another member?
+; Return false if x is not in l
 ;
-(define member? member)
+(define member? memq)
            
 ; Return #t if is atm a member of an improper list?
 ;
@@ -116,4 +125,28 @@
 ;        ((eq? a (cdr l)) #t                     )
 ;        (else            (member-imp? a (cdr l)))  )  ))
 
+; Return true if list is circular at some point
+;
+(define _circular? (lambda (l p)
+  (cond ((atom? l)     #f                             )
+        ((member? l p) #t                             )
+        (else          (_circular? (cdr l) (cons l p)))  )  ))
+
+(define circular? (lambda (l) (_circular? l '())  ))
+  
+(pc-test #f '(circular? '()))
+(pc-test #f '(circular? '(1)))
+(pc-test #f '(circular? '(1 2)))
+(pc-test #f '(circular? '(())))
+(pc-test #f '(circular? '((a b) 1 2)))
+(define x '(1 2)) 
+(pc-test #f '(circular? x))
+(set-cdr! x x)  ; make circular
+(pc-test #t '(circular? x))
+(define x '(1 2 3)) 
+(set-cdr! (tail x) x) 
+x
+(pc-test #t '(circular? x))
+ 
+(exit 1)  
 

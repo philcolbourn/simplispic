@@ -2,7 +2,6 @@
 
 (define pc-scheme.mac #t)
 
-;(define warn (lambda (mess name atom) (cons mess (cons name atom)) ))
 ;
 ;can we keep record of defines so we know what file some function came from?
 ;maybe modify define to record filename in env
@@ -14,6 +13,7 @@
 
 ; define or match a symbol
 ; FIXME:
+;
 (define match-or-define-variable (lambda (k v x e)
   (cond (k    (if (equal? (kvp-val k) x) e #f)
              ;(if (match? (kvp-val k) x e) e #f)     ; FIXME: match?
@@ -22,18 +22,12 @@
 
 ; Anything goes so long as it starts with ? and has something following
 ;
-(define pat-var-has-prefix? (lambda (v) (eq? (symbol-ref v 0) #\?)))
+(define pat-var-has-prefix?     (lambda (v) (eq? (symbol-ref v 0) #\?)))
 (define pat-var-has-min-length? (lambda (v) (int> (symbol-length v) 1)))
 
 ; Return true if a pattern variable
 ; A variable is ?x where x is something
 ;
-;(define pat-var? (lambda (v)
-;  (if (symbol? v)
-;      (if (eq? (symbol-ref v 0) #\?) 
-;          (if (int> (symbol-length v) 1) #t #f) 
-;          #f  )
-;      #f  )  ))
 
 (define pat-var? (lambda (v)
   (if (symbol? v)
@@ -59,7 +53,7 @@
 ;
 (define pat-cond-var (lambda (c) (caddr c)))
 
-; Rturn true if a pattern conditional
+; Return true if a pattern conditional
 ; eg. ("req" atom? ?a) means pattern expects an atom
 ;
 (define pat-cond? (lambda (c)
@@ -98,7 +92,7 @@
 ; Pedicate is a symbol. eg. 'atom? and value is used as a list
 ;
 (define test-cond? (lambda (p? a)
-  ;(displayn "test-cond?  p?=" p? "  a=" a)
+      ;(displayn "(test-cond?" p? a ")")
   (apply (eval1 p?) (list a))  ))
 
 ; A template 'do' expression defines a procedure to execute to 
@@ -111,21 +105,10 @@
 (define tem-do-exp? (lambda (d)
   (if (pair? d) (string? (tem-do-tag d)) #f)  ))
   
-
-;(apply cons '("car" "cdr"))
-;(define x 3)
-;(apply cons '(x 12))
-;(apply (eval1 'cons) '(x 12))
-;(define exp 3)
-
-;(test-cond? 'atom? exp)
-;exp
-;(exit 1)
-
-; does template match expression given environment
+; Does template match expression given environment
 ;
 (define match (lambda (p x e)
-  ;(displayn "(match" p x e ")")
+      ;(displayn "(match" p x e ")")
   (cond 
         ((eq? e #f)    e)
         ; SICP place
@@ -151,26 +134,10 @@
 
 (load "pc-macro-transformers.sim")
 
-;(define make-exp-old (lambda (t e)
-;  ;(displayn "(make-exp-old" t e ")")
-;  ;(define pn I)
-;  (define make (lambda (t)
-;    (cond ((null? t)      t )
-;          ((pat-var? t)   (alist-lookup t e) )
-;          ((atom? t)      t  )
-;          ((pair? t)      (eval-macro (pn (cons (make (car t)) 
-;                                                (make (cdr t))  ))))
-;          (else            (displayn "make-exp: unknown template element" t) #f)  )  ))
-;  (make t)  ))
-
-;(define x 1)
-;(define y 2)
-;(eval (+ 1 2) null-environment)
-;(eval (+ x y) null-environment)
-;(exit 1)
-
+; Make a new expression from a template
+;
 (define tem-make-exp (lambda (t e)
-  ;(displayn "(tem-make-exp" t e ")")
+      ;(displayn "(tem-make-exp" t e ")")
   (cond 
         ((null? t)       t)
         ((pat-var? t)    (alist-lookup t e))
@@ -259,122 +226,39 @@
 
 ; Display a graph of binary tree
 ;
-;(bin-display transformers3 '() "" "")
+(bin-display transformers3 '() "" "")
 
-; An environment means we can apply this macro
-; Else try next pattern
+; See if there are any macros that can be applied to expression
 ;
-;(define eval-macro-transform (lambda (x trans e)
-;  (cond (e    (displayn (macro-message-type (car trans)) ": " x 
-;                        (macro-message (car trans))  )
-;              (eval-macro (tem-make-exp (macro-tem (car trans)) e))  )
-;        (else (eval-macro-match x (cdr trans)))  )  ))
-
-;(define eval-macro-transform (lambda (x trans e)
-;  (cond (e    (displayn (macro-message-type (car trans)) ": " x 
-;                        (macro-message (car trans))  )
-;              (tem-make-exp (macro-tem (car trans)) e)  )
-;        (else (eval-macro-match x (cdr trans)))  )  ))
-
-(define eval-macro-transform2 (lambda (x l e)
-  (cond (e    (displayn (macro-message-type (car l)) ": " x 
-                        (macro-message (car l))  )
-              (tem-make-exp (macro-tem (car l)) e)  )
-        (else (eval-macro-transform2 x (cdr l)))  )  ))  ; try others in set
-
-; see if there are any macros that can be applied to expression
-;
-;(define eval-macro-match (lambda (x xforms)
-;  (cond ((null? xforms)   x)                      ; no more translations
-;        ((atom? x)        x)                      ; we don't translate atoms
-;        ((eq? (pat-key (macro-pat (car xforms))) 
-;              (exp-tag x)  )                         ; tag matches
-;                          (eval-macro-transform x 
-;                                            xforms 
-;                                            (match (macro-pat (car xforms)) x '())  ))
-;        (else             (eval-macro-match x (cdr xforms)))  )  ))  ; try next
-
-(define eval-macro-match2 (lambda (x l)
-      ;(displayn "(eval-macro-match2 " x "l)")
-  (cond ((null? l) x)                      ; no more translation sets
-        ((atom? x) x)                      ; we don't translate atoms
-        ((eq? (set-tag (car l))            ; (car l) is first set
-              (exp-tag x)  )                               ; tag matches
-                   (eval-macro-set x (set-macros (car l)))  )  ; list of macros in set 
-        (else      (eval-macro-match2 x (cdr l)))  )  ))   ; try next set
-
-(define eval-macro-x3 (lambda (x l)
-      ;(displayn "(eval-macro-x3 " x (if (null? l) "NIL" l) ")")
-  (cond (l (eval-macro-set x (bin-val l)))  ; no more translation macros
-        (else x))  ))  ; no macro found
-
 (define eval-macro-match3 (lambda (x l)
       ;(displayn "(eval-macro-match3 " x "l)")
-  (cond ((atom? x) x)                      ; we don't translate atoms
-        (else (eval-macro-x3 x (bin-search (exp-tag x) transformers3)))  )  ))
+  (cond ((atom? x) x)                                     ; don't translate atoms
+        ((bin-search (exp-tag x) transformers3) =>        ; match a macro set?
+          (lambda (t) (eval-macro-set x (bin-val t)))  )  ; if so, apply macro set
+        (else x)  )  ))                                   ; no macro found
 
 (define eval-macro-apply (lambda (x l e)
-  (cond (e    (displayn (macro-message-type (car l)) ": " x (macro-message (car l)))
-              (tem-make-exp (macro-tem (car l)) e)  )
-        (else (eval-macro-set x (cdr l)))  )  ))  ; try others in set
+  (if (macro-message (car l))
+      (displayn (macro-message-type (car l)) ": " x (macro-message (car l)))
+      '()  )
+  (tem-make-exp (macro-tem (car l)) e)  ))
 
 ; Find first macro that matches and appl it
+; NOTE: rely on full native cond implementation
 ;
 (define eval-macro-set (lambda (x l)
       ;(displayn "(eval-macro-set " x (if (null? l) "NIL" l) ")")
-  (cond ((null? l) x)                                    ; no more translation macros
-        (else      (eval-macro-apply 
-                     x 
-                     l                ; macros in set 
-                     (match (macro-pat (car l)) x '())  )))  ))
-
-; Return expresion is same as new else redo macro expansion
-; similar to eval-if-different
-;
-;(define eval-macro-redo (lambda (x trans new)
-;  (if (eq? new x) 
-;      x 
-;      (eval-macro-redoer new trans)  )  ))
-
-;(define eval-macro-redo (lambda (x trans new)
-;  (if (eq? new x) 
-;      x 
-;      (eval-macro-match new trans)  )  ))
-
-; Redo macro expansion until no change
-;
-;(define eval-macro-redoer (lambda (x trans)
-;  (eval-macro-redo x trans (eval-macro-match x trans))  ))
-
-; try skipping redos here - seems to work
-;
-;(define eval-macro-redoer (lambda (x trans)
-;  (eval-macro-match x trans)  ))
+  (cond ((null? l) x)                                        ; no more translation macros
+        ((match (macro-pat (car l)) x '()) =>                ; match a pattern?
+                   (lambda (e) (eval-macro-apply x l e))  )  ; if so, apply it
+        (else      (eval-macro-set x (cdr l)))  )  ))        ; try next pattern in set
 
 ; Expand macros using transformers
 ;         
-;(define eval-macro-exp (lambda (x)
-;      (displayn "(eval-macro-exp" x ")")
-;  (eval-macro-redoer x transformers)  ))
-
-;(define eval-macro-exp (lambda (x)
-;      (displayn "(eval-macro-exp" x ")")
-;  (eval-macro-match2 x transformers2)  ))
 
 (define eval-macro-exp (lambda (x)
       ;(displayn "(eval-macro-exp" x ")")
   (eval-macro-match3 x transformers3)  ))
-
-; If car is a list, evaluate any macros
-; Else evaluate macros in rest of list
-;
-;(define eval-macro-list (lambda (x)
-;      (displayn "(eval-macro-list" x ")")
-;  (cond ((atom? x)       x)
-;        ((pair? (car x)) (eval-macro-exp (cons (eval-macro (car x)) 
-;                                               (eval-macro-list (cdr x))  )))
-;        (else            (eval-macro-exp (cons (car x)                  
-;                                               (eval-macro-list (cdr x))  )))  )  ))
 
 
 ; equal? instead of eq? dropped time from 5.2 to 3.4 seconds
@@ -397,63 +281,11 @@
                                             (cons (car x)                  
                                                   (eval-macro-list (cdr x))  )))  )  ))
                                                   
-; Transform an expression after processing sub-expressions
-;
-;(define eval-macro (lambda (x)
-;      (displayn "(eval-macro" x ")")
-;  (cond ((atom? x) x)
-;        ;(else      (eval-macro-exp (cons (eval-macro (car x)) 
-;        ;                                 (eval-macro (cdr x))  ))))  ))
-;        (else      (eval-macro-exp (cons (eval-macro (car x)) 
-;                                         (eval-macro-list (cdr x))  ))))  ))
-
 (define eval-macro (lambda (x)
       ;(displayn "(eval-macro" x ")")
   (cond ((atom? x) x)
         (else      (eval-macro-exp (cons (eval-macro (car x)) 
                                          (eval-macro-list (cdr x))  ))))  ))
-
-;; If car is a list, process it
-;;
-;(define do (lambda (e)
-;  (cond ((atom? e) (print 'do) e)
-;        ((pair? (car e))    (cons (xx (car e))  (do (cdr e))))
-;        (else               (cons (car e)       (do (cdr e))))  )  ));
-;
-;; If tag matches, do macro and redo
-;; Else process remaining list
-;;
-;(define xx (lambda (e)
-;  (cond ;((atom? e) (print 'xx) (exit 1) e)
-;        ((eq? (car e) 'aaa) (xx (cons 'AAA    (do (cdr e)))))
-;        ((eq? (car e) 'bbb) (xx (cons 'aaa    (do (cdr e)))))
-;        (else                   (cons (car e) (do (cdr e))))  )  ))   ; need redo here until no change
-
-
-
-;(pc-test '(AAA)                       '(xx '(aaa))                       )
-;(pc-test '(AAA aaa)                   '(xx '(aaa aaa))                   )
-;(pc-test '(AAA aaa bbb aaa)           '(xx '(aaa aaa bbb aaa))           )
-;(pc-test '(AAA aaa bbb (AAA))         '(xx '(aaa aaa bbb (aaa)))         )
-;(pc-test '(AAA aaa bbb (AAA aaa))     '(xx '(aaa aaa bbb (aaa aaa)))     )
-;(pc-test '(AAA aaa bbb (AAA aaa aaa)) '(xx '(aaa aaa bbb (aaa aaa aaa))) )
-;(pc-test '(AAA aaa (AAA (AAA) (AAA) (AAA)) (AAA)) '(xx '(aaa aaa (bbb (aaa) (bbb) (aaa)) (aaa))) )
-
-;(exit 1)
-
-;(define  x-trans '(
-;  ((aaa ?a) (zzz ?a))
-;  ((bbb . ?a) (ccc . ?a))
-;  ((ccc . ?a) (zzz . ?a))
-;))
-
-;(x '(aaa 2))
-;(x '(aaa (aaa 2)))
-;(x '(aaa (aaa (aaa 2))))
-;(x '(aaa (aaa (aaa (aaa 2)))))
-;(x '(aaa (bbb (aaa 2) (bbb (aaa 1) (bbb 2) 3))))
-
-;(exit 1)
 
 ;;;;;;;;;; macro test area
 
@@ -490,7 +322,7 @@
 (define q (lambda () (let ((x 3)) (+ x 3))  ))
 q
 (q)
-(exit 1)
+;(exit 1)
 
 ;;;;;;;;;; benchmarking
 ; see old file circa 6/2/2012 for some pairs benchmarking data

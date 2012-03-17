@@ -106,8 +106,6 @@
 
 ;(exit 1)
 
-; FIXME: a procedure is also a pair
-; FIXME: do set!
 
 ; symbol functions can use string functions in many cases
 ;
@@ -128,8 +126,8 @@
 (define string?    (lambda (a) (eq? (tag a) STRING)))
 (define constant?  (lambda (a) (eq? (tag a) CONSTANT)))
 
-; FIXME: what is a procedure?
-
+; An atom is anything but a pair
+;
 (define atom? (lambda (a)
   (if (null?     a) #t
   (if (symbol?   a) #t
@@ -137,11 +135,33 @@
   (if (number?   a) #t
   (if (string?   a) #t
       (char?     a)  )))))  ))
+
+; Simplier version
+;
+(define atom? (lambda (a)
+  (if (pair?     a) #f #t)  ))
                   
 (define boolean? (lambda (b) (if (eq? b #t) #t (eq? b #f)) ))
 
 (define false? (lambda (b) (eq? b #f)))
-(define true?  (lambda (b) (not (false b))))
+(define true?  (lambda (b) (not (false? b))))
+
+; Atoms except symbols are self-evaluating
+;
+(define self-evaluating? (lambda (a)
+  (if (null?     a) #t
+  (if (constant? a) #t
+  (if (number?   a) #t
+  (if (string?   a) #t
+      (char?     a)  )))))  ))
+
+; Simplier version
+;
+(define self-evaluating? (lambda (a)
+  (if (pair?     a) #f
+  (if (symbol?   a) #f
+      #t  )
+  #t  )  ))
 
 ; simplispic version of equal?
 ;
@@ -193,7 +213,7 @@
               (if (eq? pc-test-count pc-test-stop) (exit) #f)  ))  ))
 
 (define pc-test (lambda (expect exp)
-  (display "test  ") (print exp) (display " -> ") (print expect)
+  (display "pc-test  ") (print exp) (display " -> ") (print expect)
   (if eval-macro
     (_pc-test-process expect (eval1 (eval-macro exp)))
     (_pc-test-process expect (eval1 exp))  )  ))
@@ -259,7 +279,20 @@
       #f
       (eq? (car lst) tag)  )))
 
-(define procedure? (lambda (p) (match-taglist p 'closure)))
+; FIXME: do set!
+
+; FIXME: what is a procedure?
+; FIXME: a procedure is also a pair
+
+(define procedure? (lambda (p)
+  (match-taglist p 'closure)  ))
+
+; FIXME: recursive
+;
+(define list? (lambda (l)
+  (cond ((null? l) #t)
+        ((atom? l) #f)
+        (else      (list? (cdr l)))  )  ))
 
 (define make-lambda (lambda (form body)
   (cons 'lambda (cons form body))  ))
@@ -313,7 +346,7 @@
           (else #t)  ))
    (if (procedure? fun) (pc-apply fun args) (car args))  )  ))
 
-; Apply can take an 'odd' set of arguements
+; Apply can take an 'odd' set of arguments
 ; eg. a b c ... (some list)
 ; and apparently it forms the required argument list
 ; by (append (list a b c ...) (some list))
@@ -342,6 +375,15 @@
 ;(test-test 7 pc-apply + (list 3 4))
 ;(test-test 17 pc-apply + 10 (list 3 4))
 ;(pc-apply pc-apply (list + 10 (list 3 4)))
+
+; not testing macros here
+;(pc-test #f '(cond)  )  ; no clauses
+;(pc-test 9 '(cond (9))  )
+;(pc-test #f '(cond (#f))  )
+;(pc-test #t '(cond (else))  )
+;(pc-test 5 '(cond (else 5))  )
+;(pc-test 66 '(cond ('(6 66) => cadr))  )
+;(pc-test #f '(cond (#f 99))  )  ; no else
 ;(exit 1)
 
 ; load other stuff

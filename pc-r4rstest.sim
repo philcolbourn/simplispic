@@ -23,9 +23,9 @@
 
 (define test
   (lambda (expect fun . args)
-    ;(display "test: ")
-    (write (cons fun args))
-    ;(newline)
+    (display "test: ")
+    (if (procedure? fun) (write (cons fun args)) (write (car args)))
+    (newline)
     ;(display "macro: ")
     ;(write (eval-macro (cons fun args)))
     ;(newline)
@@ -65,19 +65,47 @@
 
 ;; Fast test area
 
-(SECTION 6 1)
+(progn)
 
-(test #f not #t)
-(test #f not 3)
-(test #f not (list 3))
-(test #t not #f)
-(test #f not '())
-(test #f not (list))
-(test #f not 'nil)
+(SECTION 6 3)
+(test '(a b c d e) 'dot '(a . (b . (c . (d . (e . ()))))))
+(define x (list 'a 'b 'c))
+(define y x)
+  y
+  (test #t list? y)
+(and list? (test #t list? y))
+(set-cdr! x 4)
+(test '(a . 4) 'set-cdr! x)
+(test #t eqv? x y)
+(test '(a b c . d) 'dot '(a . (b . (c . d))))
+  (procedure? list?)
+  y
+  (test #f list? y)
+(and list? (test #f list? y))
+(and list? (let ((x (list 'a))) (set-cdr! x x) (test #f 'list? (list? x))))
 
-(test #t boolean? #f)
-(test #f boolean? 0)
-(test #f boolean? '())
+(report-errs)
+
+(exit 1)
+
+;(pc-test '(b 2) '(assv 'b '((a 1) (b 2))))
+
+;(pc-test #f '(cond))
+
+;(pc-test #t '(cond (else)))
+;(pc-test 3 '(cond (else (+ 1 2))))
+
+;(pc-test #f '(cond ((null? 2) (+ 2 3))
+;                   (else #f)  )  )
+      
+;(cond ((cond ((assv 'b '((a 1) (b 2))) => cadr)
+;             (else #f)  )))
+
+;(test '(b 2) 'cond (cond ((assv 'b '((a 1) (b 2))))
+;		     (else #f)))
+		     
+;(test 2 'cond (cond ((assv 'b '((a 1) (b 2))) => cadr)
+;		     (else #f)))
 
 ;(exit 1)
 
@@ -259,9 +287,8 @@ type-matrix
 			 ((< 3 3) 'less)
 			 (else 'equal)))
 
-; FIXME: =>
-;(test 2 'cond (cond ((assv 'b '((a 1) (b 2))) => cadr)
-;		     (else #f)))
+(test 2 'cond (cond ((assv 'b '((a 1) (b 2))) => cadr)
+		     (else #f)))
 
 ; FIXME: case
 ;(test 'composite 'case (case (* 2 3)
@@ -284,11 +311,13 @@ type-matrix
 
 (SECTION 4 2 2)
 
-;(exit 1)
 
 (test 6 'let (let ((x 2) (y 3)) (* x y)))
 (test 35 'let (let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (* z x))))
+
 (test 70 'let* (let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x))))
+
+;(exit 1)
 (test #t 'letrec (letrec ((even?
 			   (lambda (n) (if (zero? n) #t (odd? (- n 1)))))
 			  (odd?
@@ -471,7 +500,10 @@ type-matrix
 x
 (define y x)
 y
-(and list? (test #t list? y))
+;(and list?)
+;(procedure? list?)
+;(and list? (test #t list? y))
+;(exit 1)
 
 (set-cdr! x 4)
 (test '(a . 4) 'set-cdr! x)

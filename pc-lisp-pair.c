@@ -83,6 +83,21 @@ int get_val(ATOM a){
   return 0;
 }
 
+int is_in( ATOM p,ATOM l ){
+LOOP:
+  if ( is_null(l) ) return FALSE;
+  if ( ! is_pair(l) ) return FALSE;  // l not list
+  if ( _mrk(l)==1 ){  // been here
+    PEEK( "LOOP",l );
+    return FALSE;
+  }
+  _set_mrk( l,1 );  // mark pair
+  if ( is_eq(p,l) ) return TRUE;  // p in l
+  if ( is_in( p,car(l) ) ) return TRUE;
+  l = cdr( l );
+  goto LOOP;
+}
+
 #endif
 #endif
 

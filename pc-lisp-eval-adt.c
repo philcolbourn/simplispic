@@ -172,10 +172,17 @@ ATOM cond_clause_con( ATOM clau ){
 }
 
 ATOM eval_cond_clauses( ATOM lst,ATOM env ){
+  if ( is_null( lst ) ) return FAL;
   ATOM clau = car( lst );
   ATOM pred = cond_clause_pred( clau );
-  if ( ! is_eq( eval(pred,env),FAL ) ){
+  ATOM temp = eval( pred,env );
+  if ( ! is_eq( temp,FAL ) ){
     ATOM con = cond_clause_con( clau );
+    if ( is_null(con) ) return temp;  // no actions
+    if ( match_taglist( con,kw_cond_apply ) ){  // => fn
+      ATOM res = apply( eval( cadr(con),env ),cons( temp,NIL ) );
+      return res;
+    }
     return evalseq( con,env );  // FIXME: is this right?
   }
   else{

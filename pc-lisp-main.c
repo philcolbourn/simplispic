@@ -148,6 +148,7 @@ void boot(){
   kw_apply       = readString( "apply"       );
   kw_if          = readString( "if"          );  
   kw_cond        = readString( "cond"        );
+  kw_cond_apply  = readString( "=>"          );
   kw_progn       = readString( "progn"       );
   kw_cons        = readString( "cons"        );
   kw_list        = readString( "list"        );
@@ -594,25 +595,31 @@ int _prevMaxCount = 0;
 ATOM repl(){                            // read eval print loop
   ATOM ret = readString( "????" );
   fprintf( stderr,"\nStart REPL...\n" );
-  MARK3;  // catches redefines of primitives
+  MARK3;                                // catches redefines of primitives
   while TRUE{
     //REMARK3;  // if updated, redefines wont be gcd. with=6281,1:26 without=6164,1:26
     int _used = _usedPairCount;
     ATOM exp = read();
     if ( is_eq( exp,END ) ){
       KEEP3( ret );
-      //_cm_check_mem();
+      _cm_check_mem();
       //_cm_check_mem_leak();
-      fputs( "EOF\n", stderr );
+      fputs( "EOF\n",stderr );
       break;
     }
-    fputs( "========================================\n", stderr );
+    fputs( "========================================\n",stderr );
     printa( exp );
-    puts( "" );
+    fputs( "\n",stdout );
         //PEEK( "Env  : ",gEnv );
         PEEK( "Read: ",exp );
-    ATOM mac = eval_macros( exp );    
-        PEEK( "Macro: ",mac );
+    ATOM mac = eval_macros( exp ); 
+    //if DEBUG
+    if ( ! is_eq( exp,mac ) ){
+      fputs( "    Translated to:\n",stdout );
+      printa( mac );   
+      fputs( "\n",stdout );
+          PEEK( "Macro: ",mac );
+    }
     ret = eval( mac,gEnv );
     printa( ret );
         PEEK( "Print:",ret );
@@ -630,13 +637,13 @@ ATOM repl(){                            // read eval print loop
     */
     KEEP3( ret );
     int _deltaUsed = _usedPairCount-_used;
-    fprintf( stderr,"Pairs increased by %d\n",_deltaUsed );
+    fprintf( stderr,"    Pairs increased by   = %d\n",_deltaUsed );
     _deltaUsed = _usedPairCount-_used;
-    fprintf( stderr,"Pairs after GC sweep %d\n",_deltaUsed );
-    fprintf( stderr,"      Used=%d\n",_usedPairCount  );
+    fprintf( stderr,"    Pairs after GC sweep = %d\n",_deltaUsed );
+    fprintf( stderr,"    Used Paires          = %d\n",_usedPairCount  );
     //_cm_check_mem();
     //_cm_check_mem_leak();
-    puts( "" );
+    fputs( "\n",stdout );
   }
   return ret;  // we don't get here
 }
@@ -656,6 +663,7 @@ void _stats(){
   //fprintf( f,"  Recycled=%d\n",_recycleStrCount );
   fprintf( f,"Time (ms) =%ld\n",clock()/1000 );
 /*
+  // print out parts of char set
   int c = 0;
   for (;c<16384;c++){
     fprintf( f,"%d_%lc  ",c,c );
@@ -664,7 +672,7 @@ void _stats(){
 }
 
 int main(){
-  setlocale( LC_ALL,"ISO-8859-1" );
+  //setlocale( LC_ALL,"ISO-8859-1" );
   setlocale( LC_ALL,"" );
   clock_t startTime = clock();
   fprintf( stderr,"\n\n\n\n\n\n\n\n\n\nStart\n" );

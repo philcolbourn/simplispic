@@ -26,12 +26,12 @@ PROJ="pc-lisp-main.c pc-lisp-print.c pc-lisp-read2.c \
   pc-lisp-mem.c pc-lisp-gc.c pc-lisp-pair.c pc-lisp-misc.c \
  pc-lisp-adt.c  pc-lisp-eval-adt.c  pc-lisp-test.c  pc-lisp-primitives.c \
  "
-clang -ggdb -Wno-comment -O0 $PROJ
+clang -ggdb -Wno-comment -fstack-check -O0 $PROJ
 if [ "$?" != "0" ]; then exit 1; fi
 cp a.out a.clang.out
 #exit 1
 
-gcc -ggdb -fmax-errors=10 -O0 $PROJ
+gcc -ggdb -fmax-errors=10 -fstack-check -O0 $PROJ
 if [ "$?" != "0" ]; then exit 1; fi
 cp a.out a.gcc.out
 #exit 1
@@ -71,8 +71,12 @@ END
 #time cat test.pcl | ./a.cpp.clang.out > result.cpp.clang.out
 time cat test.pcl | ./a.gcc.out       > result.gcc.out
 
+#cat result.clang.out
+#cat result.cpp.clang.out
+# this fails when compiled under gcc - no longer
+# (test 70 'let* (let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x))))
+
 cat result.gcc.out
-#cat result.tim
 exit 1
 
 #try ./pc-r4rstest.bash 2>&1 | less

@@ -44,10 +44,8 @@ extern FLAGS  sar[SIZE];
 extern int   _sweepPairCount;
 extern int   _recycleStrCount;
 
-//extern int   _indent;
 extern int   _trace_enter;
-extern ATOM _keep;
-
+extern ATOM  _keep;
 
 // ADTs
 
@@ -63,6 +61,12 @@ extern int   _recyclePairCount;
 
 extern int   _decRecyclePairCount;
        void  _dec_ref( ATOM p );
+//extern ATOM (*cons)( ATOM a,ATOM b );
+extern int   _reusedPairCount;
+//       ATOM   consNormal( ATOM a,ATOM b );
+       ATOM   cons( ATOM a,ATOM b );
+       void  _gc( ATOM f,ATOM t,ATOM k );
+
 #define TVAL 3009 // 4022 //3992
 
 #define TRACE_PEEK( m,a ){  \
@@ -100,57 +104,42 @@ extern int   _decRecyclePairCount;
   #define MEM_PEEK( m,a )
 #endif
 
-#define MARK3                                                          \
-      MEM_DEBUG_LINE( "MARK3.1" );                                     \
-      /*FILE_LINE;/**/                                                 \
-  ATOM _save = _mem( usedPairs );                                      \
-      /*MEM_PEEK( "",_save );/**/                                      \
+#define MARK3                                                           \
+      MEM_DEBUG_LINE( "MARK3.1" );                                      \
+      /*FILE_LINE;/**/                                                  \
+  ATOM _save = _mem( usedPairs );                                       \
+      /*MEM_PEEK( "",_save );/**/                                       \
       MEM_DEBUG_LINE( "MARK3.2" );                                       
   
-#define REMARK3                                                        \
-      MEM_DEBUG_LINE( "REMARK3.1" );                                   \
-  _save = _mem( usedPairs );                                           \
+#define REMARK3                                                         \
+      MEM_DEBUG_LINE( "REMARK3.1" );                                    \
+  _save = _mem( usedPairs );                                            \
       MEM_DEBUG_LINE( "REMARK3.2" );                                       
 
-/*
-#define GLOBAL_MARK3                                                   \
-      MEM_DEBUG_LINE( "GLOBAL_MARK3.1" );                              \
-  _global_save = _mem( usedPairs );                                    \
-      MEM_DEBUG_LINE( "GLOBAL_MARK3.2" );
 
-#define GLOBAL_KEEP3(a) {                                              \
-      MEM_DEBUG_LINE( "GLOBAL_KEEP3.1" );                              \
-  EXITIF( is_eq( car(_global_save),REC ),"GLOBAL SAVE POINT RECYCLED!",_global_save );      \
-  _ms_sweep_new_pairs( _global_save,(a),13 );                          \
-      MEM_DEBUG_LINE( "GLOBAL_KEEP3.2" );                              \
-  _global_save = _mem( usedPairs );                                    \
-      MEM_DEBUG_LINE( "GLOBAL_KEEP3.3" );                              \
-}
-*/
-
-#define RETURN3(a) {                                                   \
-  ATOM _ret = (a);                                                     \
-      MEM_DEBUG_LINE( "RETURN3.1" );                                   \
-  EXITIF( is_eq( car(_save),REC ),"SAVE POINT RECYCLED!",_save );      \
-  _gc( _mem(usedPairs),_save,_ret );                                 \
-  /*_mem_print_used_pairs( "RETURN3",usedPairs,_save );/**/            \
-      MEM_DEBUG_LINE( "RETURN3.2" );                                   \
-  return _ret;                                                         \
+#define RETURN3(a) {                                                    \
+  ATOM _ret = (a);                                                      \
+      MEM_DEBUG_LINE( "RETURN3.1" );                                    \
+  /*EXITIF( is_eq( car(_save),REC ),"SAVE POINT RECYCLED!",_save );/**/ \
+  _gc( _mem(usedPairs),_save,_ret );                                    \
+  /*_mem_print_used_pairs( "RETURN3",usedPairs,_save );/**/             \
+      MEM_DEBUG_LINE( "RETURN3.2" );                                    \
+  return _ret;                                                          \
 }
 
-#define KEEP3(a) {                                                     \
-      MEM_DEBUG_LINE( "KEEP3.1" );                                     \
-  EXITIF( is_eq( car(_save),REC ),"SAVE POINT RECYCLED!",_save );      \
-  _gc( _mem(usedPairs),_save,NIL );                                  \
-  /*_mem_print_used_pairs( "KEEP3",usedPairs,_save );/**/              \
-      MEM_DEBUG_LINE( "KEEP3.2" );                                     \
+#define KEEP3(a) {                                                      \
+      MEM_DEBUG_LINE( "KEEP3.1" );                                      \
+  /*EXITIF( is_eq( car(_save),REC ),"SAVE POINT RECYCLED!",_save );/**/ \
+  _gc( _mem(usedPairs),_save,NIL );                                     \
+  /*_mem_print_used_pairs( "KEEP3",usedPairs,_save );/**/               \
+      MEM_DEBUG_LINE( "KEEP3.2" );                                      \
 }
 
-//#define VOID3() {                                                      \
-//      MEM_DEBUG_LINE( "VOID3.1" );                                     \
-//  _ms_sweep_new_pairs( _save,NIL,15 );                                 \
-//      MEM_DEBUG_LINE( "VOID3.2" );                                     \
-//  return;                                                              \
+//#define VOID3() {                                                       \
+//      MEM_DEBUG_LINE( "VOID3.1" );                                      \
+//  _ms_sweep_new_pairs( _save,NIL,15 );                                  \
+//      MEM_DEBUG_LINE( "VOID3.2" );                                      \
+//  return;                                                               \
 //}
 
 #define _1ST(a)      car(a)     // [1,1]
@@ -208,33 +197,6 @@ extern int   _decRecyclePairCount;
 //#define cddddr(a)    cdr( cdddr( a ) )  // rest after _4TH
 
 
-//extern int  _freePairCount;
-//ATOM _free_unlink();
-//ATOM _free_append( ATOM p );
-//extern int  _usedPairCount;
-//extern int  _usedPairMaxCount;
-//ATOM _used_unlink( ATOM p );
-//ATOM _used_append( ATOM p );
-
-extern ATOM (*cons)( ATOM a,ATOM b );
-extern int   _reusedPairCount;
-       ATOM   consNormal( ATOM a,ATOM b );
-
-//static ATOM _gc_recycle_next( ATOM this,int force );
-//static void _gc_mark( ATOM stop );
-//static void _gc_recycle_pairs( ATOM stop,int force );
-//static ATOM _ms_sweep_next( ATOM this,int m );
-       void  _gc( ATOM f,ATOM t,ATOM k );
-//static void  _ms_sweep_all_pairs( ATOM f,int m );
-//       void  _ms_sweep_new_pairs( ATOM f,ATOM r,int m );
-
-//static void _ms_mark_all_used_pairs( int m );
-//       void  _ms( ATOM env );
-//static void _gc_ensure_all_used_pairs_not_marked();
-//void _gc( ATOM stop,ATOM keep );
-//static void _gc_clear( ATOM pair );
-
-
 // END HEADER
 
 #endif
@@ -260,14 +222,8 @@ ATOM init_cdr( ATOM p,ATOM a ){
   return a;
 }
 
-ATOM car( ATOM p ){
-  return _car( p );
-}
-
-ATOM cdr( ATOM p ){
-  return _cdr( p );
-}
-
+ATOM car( ATOM p ){ return _car( p ); }
+ATOM cdr( ATOM p ){ return _cdr( p ); }
 
 ATOM set_car( ATOM p,ATOM a ){
       //TRACE( p,TVAL );
@@ -276,6 +232,16 @@ ATOM set_car( ATOM p,ATOM a ){
   ATOM o = _car(p);
   if ( is_eq( a,o ) ) return a;  // nothing to do
   if ( is_pair(a) ) {  // indicate possible loop
+    // if a is younger, then loop detected?
+    // (cons a b) mean make a pair of a and b
+    // a and b must already exist therefore they are older
+    // a pair's age is it's position in used list
+    // just need to check if a is newer.
+    // if it is, mark as possible circular list
+    //if ( _is_newer( a,p ) ){
+    //  _set_lop( p,1 );
+      // now if p is reachable from a we have a circular list
+    //}
     _set_car( p,a );  // make_par( -get_par(a))
     _inc_ref( a );  // avoid race, inc b4 dec
   }
@@ -302,6 +268,7 @@ ATOM set_cdr( ATOM p,ATOM a ){
   if ( is_pair(o) ) _dec_ref( o );
   return a;
 }
+
 // increase ref count on p
 // ignore if global environment (except first time)
 //
@@ -331,6 +298,7 @@ void _recycle( ATOM p ){
     // swapped order to gc car and cdr before moving to free list
     set_car( p,REC );  // these force recursive recycling
     set_cdr( p,REC );
+    //_set_lop( p,0 );  // reset any loop flag
     _used_unlink( p );
     _free_append( p );
     _recyclePairCount++;
@@ -355,11 +323,12 @@ void _dec_ref( ATOM p ){
 
 FLAGS  sar[SIZE];         // string garbage markage
 
-ATOM (*cons)( ATOM a,ATOM b ) = consNormal;
+//ATOM (*cons)( ATOM a,ATOM b ) = consNormal;
 
 int _reusedPairCount  = 0;
 
-ATOM consNormal( ATOM a,ATOM b ){
+//ATOM consNormal( ATOM a,ATOM b ){
+ATOM cons( ATOM a,ATOM b ){
   ATOM c = _remove_next_free();   // remove from free list
 
       EXITIF( _is_end_free_list( freePairs ),"Cons FATAL: All cells used",NIL );

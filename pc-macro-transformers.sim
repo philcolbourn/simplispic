@@ -1,10 +1,12 @@
 
+(define self? self-evaluating?)
+
 (define transformers '(
   ( (define (?n . ?a) . ?b)  (define ?n (lambda ?a . ?b)) 
                                                      info "expanded define to lambda form")
-  ( (delay ("req" atom? ?a)) ?a                      warn "can't delay a constant"        )
+  ( (delay ("req" self? ?a)) ?a                      warn "can't delay a constant"        )
   ( (delay . ?e)             (lambda () . ?e)        info "converted delay into lambda"   )
-  ( (force ("req" atom? ?a)) ?a                      warn "can't force a constant"        )
+  ( (force ("req" self? ?a)) ?a                      warn "can't force a constant"        )
   ( (begin . ?b)             (progn . ?b)            warn "FIXME: make 'begin' normal"    ) 
   ( (progn ?e)               ?e                      warn "simplified progn with single expression - is this correct?" )
 
@@ -13,23 +15,23 @@
 
   ( (and)                   #t                       warn "has no arguments"           )  
   ( (and #f)                #f                       warn "argument is false"          )  
-  ( (and ("req" atom? ?x))  ?x                       warn "argument is true"           )  
+  ( (and ("req" self? ?x))  ?x                       warn "argument is true"           )  
   ( (and ?e)                ?e                       info "has one argument"           ) 
   ( (and ?e1 . ?e2)         (if ?e1 (and . ?e2) #f)  info "converted to 'if's"         ) 
 
   ( (or)                    #f                       warn "has no argument"            )  
   ( (or #f)                 #f                       warn "argument is false"          )  
-  ( (or ("req" atom? ?x))   ?x                       warn "argument is true"           )  
+  ( (or ("req" self? ?x))   ?x                       warn "argument is true"           )  
   ( (or ?e)                 ?e                       warn "has one argument"           ) 
   ( (or ?e1 . ?e2)          (if ?e1 ?e1 (or . ?e2))  info "converted to 'if's"         )
       ; r4rstest not (if ?e1 >#t< ...)
 
   ( (not #f)                #t                       warn "argument is false"           )
-  ( (not ("req" atom? ?a))  #f                       warn "argument is true"            )
+  ( (not ("req" self? ?a))  #f                       warn "argument is true"            )
   ( (not ?e)                (if ?e #f #t)            info "converted to 'if'"           )
 
   ( (if #f ?c ?a)               ?a                   warn "consequent is unreachable"  )
-  ( (if ("req" atom? ?x) ?c ?a) ?c                   warn "alternative is unreachable" )
+  ( (if ("req" self? ?x) ?c ?a) ?c                   warn "alternative is unreachable" )
   ( (if ?e #t #f)               ?e                   warn "'if' not required"          )
   
 ; (let->form ((v1 e1) (v2 e2) ...)) --> (v1 v2 ...)
@@ -54,9 +56,9 @@
 ; let* -> lambdas - this should be faster
 ;
   ( (let* () . ?b)             ((lambda () . ?b))    info
-                        "convert let with no argument to lambda application" ) )
+                        "convert let with no argument to lambda application"   )
   ( (let* ((?f ?e) . ?r) . ?b) ((lambda (?f) (let* ?r . ?b)) ?e) info
-     "convert let* to nested lambda applications")
+                                  "convert let* to nested lambda applications" )
 
 ; let* version 2
 ; let* -> lets -> lambdas
@@ -68,13 +70,13 @@
 
 ; (letrec->define ((v1 e1) (v2 e2) ...) . b) --> ((define v1 e1) (define v2 e2) . b)
 ;
-  ( (letrec->define (?d) . ?b)      ((define . ?d) (let () . ?b))              FIXME "no message")
-  ( (letrec->define (?d . ?r) . ?b) ((define . ?d) . (letrec->define ?r . ?b)) FIXME "no message")
+  ( (letrec->define (?d) . ?b)      ((define . ?d) (let () . ?b))              FIXME #f)
+  ( (letrec->define (?d . ?r) . ?b) ((define . ?d) . (letrec->define ?r . ?b)) FIXME #f)
 
 ; (letrec ((v e) ...) . b) --> (let () (define v e) ... (let () . b))
 ; 
-  ( (letrec () . ?b) (let () . ?b)                       FIXME "no message")
-  ( (letrec ?v . ?b) (let () . (letrec->define ?v . ?b)) FIXME "no message")
+  ( (letrec () . ?b) (let () . ?b)                       FIXME #f)
+  ( (letrec ?v . ?b) (let () . (letrec->define ?v . ?b)) FIXME #f)
 
 
 
@@ -98,15 +100,42 @@
 ; FIXME: might be better to convert cond to if and fix => at same time
 ; FIXME: this poisons (kond, (cc and (cc*
 ;  
-  ( (cond . ?a)     (kond . (cc* . ?a))     info "nothing to say" )    
-  ( (cc* ?cc)       (cc . ?cc)              info "still nothing to say" )
-  ( (cc* ?cc . ?r)  ((cc . ?cc) (cc* . ?r)) info "still nothing to say" )
-  ( (cc ?c => . ?a) (?c . ?a)               warn "should you use =>?" )    
-  ( (cc ?c . ?a)    (?c . ?a)               info "no cond clause change" )    
-  ( (cc else . ?a)  (else . ?a)             info "no else clause change" )   
+;  ( (cond . ?a)     (kond . (cc* . ?a))     info "converting to 'kond'" )    
+;  ( (cc* ?cc)       (cc . ?cc)              info #f )
+;  ( (cc* ?cc . ?r)  ((cc . ?cc) (cc* . ?r)) info #f )
+;  ( (cc ?c => . ?a) (?c . ?a)               warn "should you use =>?" )    
+;  ( (cc ?c . ?a)    (?c . ?a)               info "no cond clause change" )    
+;  ( (cc else . ?a)  (else . ?a)             info "no else clause change" )   
+
+  ( (cond) #f                                    warn "empty cond expression assumed to be false" )
+  ( (cond (else)) #t                             warn "empty else clause assumed to be true"      )
+  ( (cond (else . ?a)) (progn . ?a)              info "else clause now if alternative clause"     )
+  ( (cond (?p) . ?r) 
+    (let ((_tmp ?p)) (if _tmp _tmp (cond . ?r))) info "converted to 'let' and 'if'"               )
+  ( (cond (?p => ?f) . ?r) 
+    (let ((_tmp ?p)) (if _tmp (?f _tmp) (cond . ?r))) 
+                                                 info "converted to 'let' and 'if'"               )
+  ( (cond (?p . ?c) . ?r) 
+    (if ?p (progn . ?c) (cond . ?r))             info "cond clause converted to 'if'"             )
   
-  ( (kond (else . ?a)) (progn . ?a)         info "else clause now if alternative clause" )
-  ( (kond (?c . ?a) . ?r) (if ?c (progn . ?a) (kond . ?r)) info "converted to 'if's")
+  ( (kond (else . ?a)) (progn . ?a)              info "else clause now if alternative clause" )
+  ( (kond (?c . ?a) . ?r) 
+    (if ?c (progn . ?a) (kond . ?r))             info "converted to 'if's")
+  
+; This demonstrates dimishing returns.
+; Macros can look at many constant cases where computation can be done at
+; parsing time. But unless code is executed many times, any effort to simplify 
+; code may take longer than it would to execute it.
+;
+; Process an assv search where key and associative list are constants.
+; Return pair if ey is found or #f.
+;
+  ( (assv (quote ?k) ()) #f                     warn "empty associative list"        )
+  ( (assv (quote ?k) (quote ())) #f             warn "empty quoted associative list" )
+  ( (assv (quote ?k) (quote ((?k . ?v) . ?r))) 
+    (quote (?k . ?v))                           info "key value pair known"          )
+  ( (assv (quote ?k) (quote (?x . ?r))) 
+    (assv (quote ?k) (quote ?r))                info "shortening associative list"   )
   
 ))
 

@@ -199,6 +199,7 @@ extern int  _usedPairMaxCount;
        ATOM _remove_next_free();
        int  _is_free( ATOM p );
        int  _is_used( ATOM p );
+       int  _is_newer( ATOM p,ATOM r );
 
 //static ATOM _remove_next_used( ATOM p );
 //static ATOM _move_next_used_last( ATOM p );
@@ -432,10 +433,10 @@ int _freePairCount    = SIZE-1;
 ATOM _free_unlink(){
   _freePairCount--;
   ATOM p = freePairs;             // next free pair 
-      //EXITIF( _freePairCount==0,"Last free pair!",p );
+      EXITIF( _freePairCount==0,"Last free pair!",p );
   freePairs = _mem( p );          // unlink from free list
       //EXITIF( is_eq( freePairs,MEM0 ),"Last free pair!",p );
-      //EXITIF( get_par(p)==(SIZE-1),"Last free pair!",p );
+      EXITIF( get_par(p)==(SIZE-1),"Last free pair!",p );
   _set_mem( p,NMT );        // optional for now
   _set_bak( p,NMT );        // optional for now
       //EXITIF( _is_free(p),"New free pair is still on free list!",p );
@@ -523,6 +524,21 @@ int _is_used( ATOM p ){
   ATOM f = _mem( usedPairs );
   while ( ! _is_end_used_list( f ) ){
     if ( is_eq( f,p ) ) return TRUE;
+    f = _mem(f);
+  }
+  return FALSE;
+}
+
+// Return true of p is same or newer than r
+// A newer pair will be between newest pair and r
+
+int _is_newer( ATOM p,ATOM r ){
+  if ( ! is_par(p) ) return FALSE;
+  if ( ! is_par(r) ) return FALSE;
+  ATOM f = _mem( usedPairs );
+  while ( ! _is_end_used_list( f ) ){
+    if ( is_eq( f,p ) ) return TRUE;
+    if ( is_eq( f,r ) ) return FALSE;  // got to r first
     f = _mem(f);
   }
   return FALSE;

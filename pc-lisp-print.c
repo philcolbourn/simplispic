@@ -203,6 +203,10 @@ ATOM fprinta1( FILE *f,ATOM a,char *lsep,int fmt ){
 ATOM fprintp( FILE *f,ATOM p,char sep,char *lsep,int fmt ){
   ATOM t;                     // FIXME: could use p instead of t
 LOOP:
+  if ( _pmk(p)==pmark ){
+    fputs( "...",f ); 
+    return p;  // been here recently
+  }
   _print_flag( f,p );
   fprinta1( f,car(p),lsep,fmt );        // print (car p)
   _set_pmk( p,pmark );

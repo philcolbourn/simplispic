@@ -12,7 +12,7 @@
         ((eq? k (bin-key b))      b)                            ; key found
         ((string<? k (bin-key b)) (bin-search k (bin-less b)))
         ((string>? k (bin-key b)) (bin-search k (bin-more b)))
-        (else                     (error "oops"))  )  ))
+        (else                     (displayn "(binsearch" k "...) not found") #f)  )  ))
 
 ;     ,1
 ;  ,2-|
